@@ -1,1 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trade Mate</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 
+<body>
+
+  <main class="app">
+
+    <header>
+      <div>
+        <div class="brand">Trade <span>Mate</span></div>
+        <div class="sub">Deriv Synthetic Trading Dashboard</div>
+      </div>
+
+      <div id="status" class="status">
+        Not connected
+      </div>
+    </header>
+
+    <section class="hero">
+      <h1>Trade Mate</h1>
+      <p>Simple Deriv trading dashboard.</p>
+
+      <button id="connect" class="button">
+        Connect Deriv
+      </button>
+    </section>
+
+    <section class="grid">
+
+      <div class="card">
+        <small>MARKET</small>
+        <strong>Synthetic Indices</strong>
+
+        <select>
+          <option>Volatility 10</option>
+          <option>Volatility 25</option>
+          <option>Volatility 50</option>
+          <option>Volatility 75</option>
+          <option>Volatility 100</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <small>CONTRACT</small>
+        <strong>Digit</strong>
+
+        <select>
+          <option>Over / Under</option>
+          <option>Even / Odd</option>
+          <option>Matches / Differs</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <small>LAST DIGIT</small>
+        <strong id="digit">—</strong>
+        <span class="muted">Live feed coming next</span>
+      </div>
+
+      <div class="card">
+        <small>SIGNAL</small>
+        <strong id="signal">WAIT</strong>
+        <span class="muted">No automatic trade yet</span>
+      </div>
+
+    </section>
+
+    <section class="panel">
+      <h2>Trade Mate Features</h2>
+
+      <div class="checks">
+        <label>✓ Deriv account connection</label>
+        <label>✓ Synthetic indices</label>
+        <label>□ Live tick stream</label>
+        <label>□ Digit statistics</label>
+        <label>□ Contract purchase</label>
+        <label>□ Balance display</label>
+      </div>
+
+    </section>
+
+    <footer>
+      Trade Mate
+    </footer>
+
+  </main>
+
+  <script src="app.js"></script>
+
+</body>
+</
