@@ -1,6 +1,7 @@
 // Trade Mate — Live Deriv Synthetic Indices
 
-const DERIV_WS = "wss://ws.binaryws.com/websockets/v3";
+const DERIV_WS =
+  "wss://api.derivws.com/trading/v1/options/ws/public";
 
 const status = document.getElementById("status");
 const connect = document.getElementById("connect");
@@ -9,9 +10,7 @@ const marketSelect = document.querySelector(".card select");
 let socket;
 
 function setStatus(text) {
-  if (status) {
-    status.textContent = text;
-  }
+  if (status) status.textContent = text;
 }
 
 function connectDeriv() {
@@ -24,7 +23,6 @@ function connectDeriv() {
 
     socket.send(JSON.stringify({
       active_symbols: "brief",
-      product_type: "basic",
       req_id: 1
     }));
   };
@@ -32,9 +30,11 @@ function connectDeriv() {
   socket.onmessage = function (event) {
     const data = JSON.parse(event.data);
 
+    console.log("Deriv:", data);
+
     if (data.error) {
-      console.error(data.error);
       setStatus("API error");
+      console.error(data.error);
       return;
     }
 
@@ -43,11 +43,13 @@ function connectDeriv() {
     }
   };
 
-  socket.onerror = function () {
+  socket.onerror = function (event) {
+    console.error("WebSocket error:", event);
     setStatus("Connection error");
   };
 
-  socket.onclose = function () {
+  socket.onclose = function (event) {
+    console.log("WebSocket closed:", event.code, event.reason);
     setStatus("Disconnected");
   };
 }
@@ -61,9 +63,7 @@ function loadSyntheticIndices(symbols) {
     .filter(symbol => {
       const market = (symbol.market || "").toLowerCase();
       const name = (
-        symbol.display_name ||
-        symbol.underlying_symbol_name ||
-        ""
+        symbol.underlying_symbol_name || ""
       ).toLowerCase();
 
       return (
@@ -77,22 +77,17 @@ function loadSyntheticIndices(symbols) {
         name.includes("boom")
       );
     })
-    .sort((a, b) => {
-      const nameA = a.display_name || a.underlying_symbol_name || "";
-      const nameB = b.display_name || b.underlying_symbol_name || "";
-      return nameA.localeCompare(nameB);
-    });
+    .sort((a, b) =>
+      (a.underlying_symbol_name || "").localeCompare(
+        b.underlying_symbol_name || ""
+      )
+    );
 
   syntheticSymbols.forEach(symbol => {
     const option = document.createElement("option");
 
-    option.value =
-      symbol.symbol ||
-      symbol.underlying_symbol;
-
-    option.textContent =
-      symbol.display_name ||
-      symbol.underlying_symbol_name;
+    option.value = symbol.underlying_symbol;
+    option.textContent = symbol.underlying_symbol_name;
 
     marketSelect.appendChild(option);
   });
