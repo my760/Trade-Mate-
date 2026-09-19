@@ -1,6 +1,6 @@
 // Trade Mate — Deriv Live Market Data
 
-const DERIV_WS = "wss://ws.binaryws.com/websockets/v3";
+wss://api.derivws.com/trading/v1/options/ws/public
 
 const status = document.getElementById("status");
 const connect = document.getElementById("connect");
