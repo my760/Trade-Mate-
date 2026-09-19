@@ -1,7 +1,6 @@
 // Trade Mate — Live Deriv Synthetic Indices
 
-const DERIV_APP_ID = "34qc7VTA0116XjqsL06jn";
-const DERIV_WS = `wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
+const DERIV_WS = "wss://ws.binaryws.com/websockets/v3";
 
 const status = document.getElementById("status");
 const connect = document.getElementById("connect");
@@ -9,14 +8,12 @@ const marketSelect = document.querySelector(".card select");
 
 let socket;
 
-// Show connection status
 function setStatus(text) {
   if (status) {
     status.textContent = text;
   }
 }
 
-// Connect to Deriv
 function connectDeriv() {
   setStatus("Connecting...");
 
@@ -25,10 +22,10 @@ function connectDeriv() {
   socket.onopen = function () {
     setStatus("Connected");
 
-    // Ask Deriv for all available symbols
     socket.send(JSON.stringify({
       active_symbols: "brief",
-      product_type: "basic"
+      product_type: "basic",
+      req_id: 1
     }));
   };
 
@@ -37,7 +34,7 @@ function connectDeriv() {
 
     if (data.error) {
       console.error(data.error);
-      setStatus("Connection error");
+      setStatus("API error");
       return;
     }
 
@@ -55,7 +52,6 @@ function connectDeriv() {
   };
 }
 
-// Put live symbols into the dropdown
 function loadSyntheticIndices(symbols) {
   if (!marketSelect) return;
 
@@ -64,38 +60,46 @@ function loadSyntheticIndices(symbols) {
   const syntheticSymbols = symbols
     .filter(symbol => {
       const market = (symbol.market || "").toLowerCase();
-      const display = (symbol.display_name || "").toLowerCase();
+      const name = (
+        symbol.display_name ||
+        symbol.underlying_symbol_name ||
+        ""
+      ).toLowerCase();
 
       return (
         market === "synthetic_index" ||
-        display.includes("volatility") ||
-        display.includes("jump") ||
-        display.includes("step") ||
-        display.includes("drift") ||
-        display.includes("range break")
+        name.includes("volatility") ||
+        name.includes("jump") ||
+        name.includes("step") ||
+        name.includes("drift") ||
+        name.includes("range break") ||
+        name.includes("crash") ||
+        name.includes("boom")
       );
     })
-    .sort((a, b) =>
-      a.display_name.localeCompare(b.display_name)
-    );
+    .sort((a, b) => {
+      const nameA = a.display_name || a.underlying_symbol_name || "";
+      const nameB = b.display_name || b.underlying_symbol_name || "";
+      return nameA.localeCompare(nameB);
+    });
 
   syntheticSymbols.forEach(symbol => {
     const option = document.createElement("option");
 
-    option.value = symbol.symbol;
-    option.textContent = symbol.display_name;
+    option.value =
+      symbol.symbol ||
+      symbol.underlying_symbol;
+
+    option.textContent =
+      symbol.display_name ||
+      symbol.underlying_symbol_name;
 
     marketSelect.appendChild(option);
   });
 
-  if (syntheticSymbols.length > 0) {
-    setStatus(`Connected • ${syntheticSymbols.length} indices`);
-  } else {
-    setStatus("No indices found");
-  }
+  setStatus(`Connected • ${syntheticSymbols.length} indices`);
 }
 
-// Connect button
 if (connect) {
   connect.addEventListener("click", function (event) {
     event.preventDefault();
@@ -106,5 +110,4 @@ if (connect) {
   });
 }
 
-// Initial status
 setStatus("Not connected");
