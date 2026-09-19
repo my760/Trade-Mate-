@@ -29,9 +29,9 @@ function connectDeriv() {
     setStatus("Connected");
 
     socket.send(JSON.stringify({
-      active_symbols: "brief",
-      product_type: "basic",
-      req_id: 1
+  active_symbols: "brief",
+  req_id: 1
+}));
     }));
   };
 
