@@ -16,8 +16,7 @@ function connectDeriv() {
   setStatus("Connecting...");
 
   socket = new WebSocket(
-  "wss://ws.binaryws.com/websockets/v3"
-);
+  wss://api.derivws.com/trading/v1/options/ws/public
   );
 
   socket.onopen = function () {
