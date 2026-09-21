@@ -35,6 +35,11 @@ function connectDeriv() {
 
   socket.onmessage = function (event) {
     const data = JSON.parse(event.data);
+    console.log("Message:", data);
+
+    if (data.error) {
+      setStatus("API Error: " + data.error.message);
+    }
 
     if (data.msg_type === "tick" && data.tick) {
       updateDigit(data.tick.quote);
