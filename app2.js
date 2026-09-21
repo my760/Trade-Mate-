@@ -1,3 +1,7 @@
+window.onerror = function (msg) {
+  document.getElementById("status").textContent = "JS Error: " + msg;
+};
+
 const status = document.getElementById("status");
 const connect = document.getElementById("connect");
 
