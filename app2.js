@@ -16,7 +16,8 @@ function connectDeriv() {
   setStatus("Connecting...");
 
   socket = new WebSocket(
-    "wss://ws.derivws.com/websockets/v3?app_id=1089"
+  "wss://ws.binaryws.com/websockets/v3"
+);
   );
 
   socket.onopen = function () {
