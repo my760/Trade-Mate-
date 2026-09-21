@@ -18,7 +18,6 @@ function connectDeriv() {
   socket = new WebSocket(
     "wss://api.derivws.com/trading/v1/options/ws/public"
   );
-  );
 
   socket.onopen = function () {
     setStatus("Connected");
@@ -48,7 +47,6 @@ function connectDeriv() {
 }
 
 function subscribeToTicks(symbol) {
-  // unsubscribe from the previous symbol first
   if (currentSymbol) {
     socket.send(JSON.stringify({ forget_all: "ticks" }));
   }
