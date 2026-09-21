@@ -29,8 +29,7 @@ function connectDeriv() {
   };
 
   socket.onclose = function (event) {
-    setStatus("Disconnected");
-    console.log("WebSocket closed:", event.code, event.reason);
+    setStatus("Disconnected (code: " + event.code + ", reason: " + event.reason + ")");
   };
 
   socket.onmessage = function (event) {
