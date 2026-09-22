@@ -48,6 +48,17 @@ let lastPlacedContractId = null;
 let selectedBot = "over1";
 const HISTORY_LENGTH = 500;
 
+// ---------- Tab switching ----------
+
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", function () {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
 // ---------- Bot tile selection ----------
 
 function selectBot(botKey) {
@@ -63,7 +74,7 @@ if (botGrid) {
       selectBot(tile.dataset.bot);
     });
   });
-  selectBot(selectedBot); // default highlight
+  selectBot(selectedBot);
 }
 
 // ---------- Public tick socket ----------
