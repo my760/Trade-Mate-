@@ -2,6 +2,8 @@ window.onerror = function (msg) {
   document.getElementById("status").textContent = "JS Error: " + msg;
 };
 
+const APP_ID = "34qc7VTAO1l6XjqsL06jn"; // your registered Deriv App ID
+
 const status = document.getElementById("status");
 const connect = document.getElementById("connect");
 const marketSelect = document.getElementById("market");
@@ -10,10 +12,25 @@ const digitDisplay = document.getElementById("digit");
 const signalDisplay = document.getElementById("signal");
 const digitStatsDisplay = document.getElementById("digitStats");
 
+const patToken = document.getElementById("patToken");
+const accountType = document.getElementById("accountType");
+const authBtn = document.getElementById("authBtn");
+const accountStatus = document.getElementById("accountStatus");
+const balanceDisplay = document.getElementById("balance");
+const stakeAmount = document.getElementById("stakeAmount");
+const barrierDigit = document.getElementById("barrierDigit");
+const ticksDuration = document.getElementById("ticksDuration");
+const buyBtn = document.getElementById("buyBtn");
+const tradeStatus = document.getElementById("tradeStatus");
+
 let socket = null;
+let authSocket = null;
 let currentSymbol = null;
 let digitHistory = [];
+let accounts = {};
 const HISTORY_LENGTH = 500;
+
+// ---------- Public tick socket ----------
 
 function connectDeriv() {
   setStatus("Connecting...");
@@ -79,7 +96,6 @@ function subscribeToTicks(symbol) {
   digitHistory = [];
   renderDigitStats();
 
-  // one-time backfill of the last 500 ticks
   socket.send(JSON.stringify({
     ticks_history: symbol,
     end: "latest",
@@ -87,7 +103,6 @@ function subscribeToTicks(symbol) {
     style: "ticks"
   }));
 
-  // then start the live stream
   socket.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
 }
 
@@ -131,6 +146,149 @@ function setStatus(message) {
   }
 }
 
+// ---------- Authenticated account + trading ----------
+
+async function authenticate() {
+  const token = patToken.value.trim();
+  if (!token) {
+    accountStatus.textContent = "Enter your API token first";
+    return;
+  }
+
+  accountStatus.textContent = "Fetching accounts...";
+
+  try {
+    const res = await fetch("https://api.derivws.com/trading/v1/options/accounts", {
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Deriv-App-ID": APP_ID
+      }
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      accountStatus.textContent = "Auth error: " + (data.errors ? data.errors[0].message : res.status);
+      return;
+    }
+
+    accounts = {};
+    (data.data || []).forEach(acc => {
+      accounts[acc.account_type] = acc.account_id;
+    });
+
+    accountStatus.textContent = "Found: " + Object.keys(accounts).join(", ");
+    await connectAuthSocket();
+  } catch (e) {
+    accountStatus.textContent = "Auth failed: " + e.message;
+  }
+}
+
+async function connectAuthSocket() {
+  const type = accountType.value;
+  const accId = accounts[type];
+
+  if (!accId) {
+    accountStatus.textContent = "No " + type + " account found on your login";
+    return;
+  }
+
+  const token = patToken.value.trim();
+
+  try {
+    const otpRes = await fetch(
+      "https://api.derivws.com/trading/v1/options/accounts/" + accId + "/otp",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Deriv-App-ID": APP_ID
+        }
+      }
+    );
+    const otpData = await otpRes.json();
+
+    if (!otpRes.ok) {
+      accountStatus.textContent = "OTP error: " + (otpData.errors ? otpData.errors[0].message : otpRes.status);
+      return;
+    }
+
+    const wsUrl = otpData.data.url;
+
+    if (authSocket) authSocket.close();
+    authSocket = new WebSocket(wsUrl);
+
+    authSocket.onopen = function () {
+      accountStatus.textContent = "Trading ready (" + type + ")";
+      authSocket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+    };
+
+    authSocket.onerror = function () {
+      accountStatus.textContent = "Trading connection error";
+    };
+
+    authSocket.onclose = function (event) {
+      accountStatus.textContent = "Trading connection closed (" + event.code + ")";
+    };
+
+    authSocket.onmessage = function (event) {
+      const data = JSON.parse(event.data);
+      console.log("Auth message:", data);
+
+      if (data.error) {
+        tradeStatus.textContent = "Error: " + data.error.message;
+        return;
+      }
+
+      if (data.msg_type === "balance" && data.balance) {
+        balanceDisplay.textContent = data.balance.balance + " " + data.balance.currency;
+      }
+
+      if (data.msg_type === "buy" && data.buy) {
+        tradeStatus.textContent = "Bought! Contract ID: " + data.buy.contract_id + ", Payout: " + data.buy.payout;
+      }
+    };
+  } catch (e) {
+    accountStatus.textContent = "Connection failed: " + e.message;
+  }
+}
+
+function placeTrade() {
+  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    tradeStatus.textContent = "Not authenticated yet";
+    return;
+  }
+
+  const contractType = contractSelect.value;
+  const symbol = marketSelect.value;
+  const stake = parseFloat(stakeAmount.value);
+  const ticks = parseInt(ticksDuration.value, 10);
+
+  const parameters = {
+    amount: stake,
+    basis: "stake",
+    contract_type: contractType,
+    currency: "USD",
+    duration: ticks,
+    duration_unit: "t",
+    underlying_symbol: symbol
+  };
+
+  if (["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(contractType)) {
+    parameters.barrier = barrierDigit.value;
+  }
+
+  const request = {
+    buy: "1",
+    price: stake.toString(),
+    parameters: parameters
+  };
+
+  tradeStatus.textContent = "Placing trade...";
+  authSocket.send(JSON.stringify(request));
+}
+
+// ---------- Event listeners ----------
+
 if (connect) {
   connect.addEventListener("click", function (event) {
     event.preventDefault();
@@ -143,6 +301,28 @@ if (marketSelect) {
     if (socket && socket.readyState === WebSocket.OPEN) {
       subscribeToTicks(marketSelect.value);
     }
+  });
+}
+
+if (authBtn) {
+  authBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    authenticate();
+  });
+}
+
+if (accountType) {
+  accountType.addEventListener("change", function () {
+    if (Object.keys(accounts).length > 0) {
+      connectAuthSocket();
+    }
+  });
+}
+
+if (buyBtn) {
+  buyBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    placeTrade();
   });
 }
 
