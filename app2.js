@@ -21,6 +21,7 @@ function connectDeriv() {
 
   socket.onopen = function () {
     setStatus("Connected");
+    loadSymbols();
     subscribeToTicks(marketSelect.value);
   };
 
@@ -40,10 +41,26 @@ function connectDeriv() {
       setStatus("API Error: " + data.error.message);
     }
 
+    if (data.msg_type === "active_symbols") {
+      marketSelect.innerHTML = "";
+      data.active_symbols
+        .filter(s => s.market === "synthetic_index")
+        .forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.underlying_symbol;
+          opt.textContent = s.underlying_symbol_name;
+          marketSelect.appendChild(opt);
+        });
+    }
+
     if (data.msg_type === "tick" && data.tick) {
       updateDigit(data.tick.quote);
     }
   };
+}
+
+function loadSymbols() {
+  socket.send(JSON.stringify({ active_symbols: "brief" }));
 }
 
 function subscribeToTicks(symbol) {
