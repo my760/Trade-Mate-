@@ -216,4 +216,163 @@ async function connectAuthSocket() {
 
     const wsUrl = otpData.data.url;
 
-    if (authSocket
+    if (authSocket) authSocket.close();
+    authSocket = new WebSocket(wsUrl);
+
+    authSocket.onopen = function () {
+      accountStatus.textContent = "Trading ready (" + type + ")";
+      authSocket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+    };
+
+    authSocket.onerror = function () {
+      accountStatus.textContent = "Trading connection error";
+    };
+
+    authSocket.onclose = function (event) {
+      accountStatus.textContent = "Trading connection closed (" + event.code + ")";
+    };
+
+    authSocket.onmessage = function (event) {
+      const data = JSON.parse(event.data);
+      console.log("Auth message:", data);
+
+      if (data.error) {
+        tradeStatus.textContent = "Error: " + data.error.message;
+        return;
+      }
+
+      if (data.msg_type === "balance" && data.balance) {
+        balanceDisplay.textContent = data.balance.balance + " " + data.balance.currency;
+      }
+
+      if (data.msg_type === "buy" && data.buy) {
+        const contractId = data.buy.contract_id;
+        tradeStatus.textContent = "Bought! Contract ID: " + contractId;
+
+        trades.unshift({
+          contractId: contractId,
+          symbol: marketSelect.value,
+          contractType: contractSelect.value,
+          stake: parseFloat(stakeAmount.value),
+          status: "open",
+          profit: null
+        });
+        renderTradeHistory();
+
+        authSocket.send(JSON.stringify({
+          proposal_open_contract: 1,
+          contract_id: contractId,
+          subscribe: 1
+        }));
+      }
+
+      if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+        const contract = data.proposal_open_contract;
+        const trade = trades.find(t => t.contractId === contract.contract_id);
+        if (trade) {
+          const profit = parseFloat(contract.profit);
+          trade.profit = profit;
+          if (contract.is_sold) {
+            trade.status = profit >= 0 ? "won" : "lost";
+          } else {
+            trade.status = "open";
+          }
+          renderTradeHistory();
+        }
+      }
+    };
+  } catch (e) {
+    accountStatus.textContent = "Connection failed: " + e.message;
+  }
+}
+
+function renderTradeHistory() {
+  if (!tradeHistoryDisplay) return;
+
+  if (trades.length === 0) {
+    tradeHistoryDisplay.textContent = "No trades yet";
+    return;
+  }
+
+  tradeHistoryDisplay.innerHTML = trades.slice(0, 20).map(t => {
+    const label = t.status === "open" ? "OPEN" : (t.status === "won" ? "WON" : "LOST");
+    const profitText = t.profit !== null ? (t.profit >= 0 ? "+" : "") + t.profit.toFixed(2) : "—";
+    return "<div>" + t.symbol + " " + t.contractType + " | stake " + t.stake + " | " + label + " (" + profitText + ")</div>";
+  }).join("");
+}
+
+function placeTrade() {
+  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    tradeStatus.textContent = "Not authenticated yet";
+    return;
+  }
+
+  const contractType = contractSelect.value;
+  const symbol = marketSelect.value;
+  const stake = parseFloat(stakeAmount.value);
+  const ticks = parseInt(ticksDuration.value, 10);
+
+  const parameters = {
+    amount: stake,
+    basis: "stake",
+    contract_type: contractType,
+    currency: "USD",
+    duration: ticks,
+    duration_unit: "t",
+    underlying_symbol: symbol
+  };
+
+  if (["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(contractType)) {
+    parameters.barrier = barrierDigit.value;
+  }
+
+  const request = {
+    buy: "1",
+    price: stake.toString(),
+    parameters: parameters
+  };
+
+  tradeStatus.textContent = "Placing trade...";
+  authSocket.send(JSON.stringify(request));
+}
+
+// ---------- Event listeners ----------
+
+if (connect) {
+  connect.addEventListener("click", function (event) {
+    event.preventDefault();
+    connectDeriv();
+  });
+}
+
+if (marketSelect) {
+  marketSelect.addEventListener("change", function () {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      subscribeToTicks(marketSelect.value);
+    }
+  });
+}
+
+if (authBtn) {
+  authBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    authenticate();
+  });
+}
+
+if (accountType) {
+  accountType.addEventListener("change", function () {
+    if (Object.keys(accounts).length > 0) {
+      connectAuthSocket();
+    }
+  });
+}
+
+if (buyBtn) {
+  buyBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    placeTrade();
+  });
+}
+
+setStatus("Not connected");
