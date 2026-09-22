@@ -4,13 +4,23 @@ window.onerror = function (msg) {
 
 const APP_ID = "34qc7VTAO1l6XjqsL06jn";
 
+const BOT_PRESETS = {
+  over1: { label: "Digit Over 1", contract_type: "DIGITOVER", barrier: "1" },
+  over2: { label: "Digit Over 2", contract_type: "DIGITOVER", barrier: "2" },
+  under8: { label: "Digit Under 8", contract_type: "DIGITUNDER", barrier: "8" },
+  under7: { label: "Digit Under 7", contract_type: "DIGITUNDER", barrier: "7" },
+  even: { label: "Digit Even", contract_type: "DIGITEVEN", barrier: null },
+  odd: { label: "Digit Odd", contract_type: "DIGITODD", barrier: null },
+  match5: { label: "Digit Matches 5", contract_type: "DIGITMATCH", barrier: "5" },
+  diff5: { label: "Digit Differs 5", contract_type: "DIGITDIFF", barrier: "5" }
+};
+
 const status = document.getElementById("status");
 const connect = document.getElementById("connect");
 const marketSelect = document.getElementById("market");
-const contractSelect = document.getElementById("contract");
 const digitDisplay = document.getElementById("digit");
-const signalDisplay = document.getElementById("signal");
 const digitStatsDisplay = document.getElementById("digitStats");
+const botGrid = document.getElementById("botGrid");
 
 const patToken = document.getElementById("patToken");
 const accountType = document.getElementById("accountType");
@@ -18,9 +28,10 @@ const authBtn = document.getElementById("authBtn");
 const accountStatus = document.getElementById("accountStatus");
 const balanceDisplay = document.getElementById("balance");
 const stakeAmount = document.getElementById("stakeAmount");
-const barrierDigit = document.getElementById("barrierDigit");
 const ticksDuration = document.getElementById("ticksDuration");
-const buyBtn = document.getElementById("buyBtn");
+const maxTrades = document.getElementById("maxTrades");
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
 const tradeStatus = document.getElementById("tradeStatus");
 const tradeHistoryDisplay = document.getElementById("tradeHistory");
 
@@ -29,8 +40,31 @@ let authSocket = null;
 let currentSymbol = null;
 let digitHistory = [];
 let accounts = {};
-let trades = []; // { contractId, symbol, contractType, stake, barrier, status, profit }
+let trades = [];
+let isAutoTrading = false;
+let tradesPlacedCount = 0;
+let awaitingSettlement = false;
+let lastPlacedContractId = null;
+let selectedBot = "over1";
 const HISTORY_LENGTH = 500;
+
+// ---------- Bot tile selection ----------
+
+function selectBot(botKey) {
+  selectedBot = botKey;
+  document.querySelectorAll(".bot-tile").forEach(tile => {
+    tile.classList.toggle("selected", tile.dataset.bot === botKey);
+  });
+}
+
+if (botGrid) {
+  botGrid.querySelectorAll(".bot-tile").forEach(tile => {
+    tile.addEventListener("click", function () {
+      selectBot(tile.dataset.bot);
+    });
+  });
+  selectBot(selectedBot); // default highlight
+}
 
 // ---------- Public tick socket ----------
 
@@ -148,7 +182,7 @@ function setStatus(message) {
   }
 }
 
-// ---------- Authenticated account + trading ----------
+// ---------- Authenticated account ----------
 
 async function authenticate() {
   const token = patToken.value.trim();
@@ -230,6 +264,7 @@ async function connectAuthSocket() {
 
     authSocket.onclose = function (event) {
       accountStatus.textContent = "Trading connection closed (" + event.code + ")";
+      isAutoTrading = false;
     };
 
     authSocket.onmessage = function (event) {
@@ -238,6 +273,7 @@ async function connectAuthSocket() {
 
       if (data.error) {
         tradeStatus.textContent = "Error: " + data.error.message;
+        awaitingSettlement = false;
         return;
       }
 
@@ -247,15 +283,18 @@ async function connectAuthSocket() {
 
       if (data.msg_type === "buy" && data.buy) {
         const contractId = data.buy.contract_id;
-        tradeStatus.textContent = "Bought! Contract ID: " + contractId;
+        lastPlacedContractId = contractId;
+        const preset = BOT_PRESETS[selectedBot];
 
         trades.unshift({
           contractId: contractId,
           symbol: marketSelect.value,
-          contractType: contractSelect.value,
+          contractType: preset.contract_type,
+          barrier: preset.barrier,
           stake: parseFloat(stakeAmount.value),
           status: "open",
-          profit: null
+          profit: null,
+          exitDigit: null
         });
         renderTradeHistory();
 
@@ -272,17 +311,42 @@ async function connectAuthSocket() {
         if (trade) {
           const profit = parseFloat(contract.profit);
           trade.profit = profit;
+
           if (contract.is_sold) {
             trade.status = profit >= 0 ? "won" : "lost";
+            if (contract.exit_spot !== undefined) {
+              trade.exitDigit = lastDigitOf(contract.exit_spot);
+            }
+            renderTradeHistory();
+
+            if (awaitingSettlement && trade.contractId === lastPlacedContractId) {
+              awaitingSettlement = false;
+              handleTradeSettled();
+            }
           } else {
             trade.status = "open";
+            renderTradeHistory();
           }
-          renderTradeHistory();
         }
       }
     };
   } catch (e) {
     accountStatus.textContent = "Connection failed: " + e.message;
+  }
+}
+
+function outcomeExplanation(t) {
+  if (t.exitDigit === null || t.exitDigit === undefined) return "";
+  const d = t.exitDigit;
+  const b = t.barrier !== null ? parseInt(t.barrier, 10) : null;
+  switch (t.contractType) {
+    case "DIGITOVER": return "digit " + d + (d > b ? " > " : " <= ") + b;
+    case "DIGITUNDER": return "digit " + d + (d < b ? " < " : " >= ") + b;
+    case "DIGITMATCH": return "digit " + d + (d === b ? " = " : " ≠ ") + b;
+    case "DIGITDIFF": return "digit " + d + (d !== b ? " ≠ " : " = ") + b;
+    case "DIGITEVEN": return "digit " + d + (d % 2 === 0 ? " (even)" : " (odd)");
+    case "DIGITODD": return "digit " + d + (d % 2 !== 0 ? " (odd)" : " (even)");
+    default: return "digit " + d;
   }
 }
 
@@ -294,20 +358,28 @@ function renderTradeHistory() {
     return;
   }
 
-  tradeHistoryDisplay.innerHTML = trades.slice(0, 20).map(t => {
+  tradeHistoryDisplay.innerHTML = trades.slice(0, 30).map(t => {
     const label = t.status === "open" ? "OPEN" : (t.status === "won" ? "WON" : "LOST");
     const profitText = t.profit !== null ? (t.profit >= 0 ? "+" : "") + t.profit.toFixed(2) : "—";
-    return "<div>" + t.symbol + " " + t.contractType + " | stake " + t.stake + " | " + label + " (" + profitText + ")</div>";
+    const reason = t.status !== "open" ? outcomeExplanation(t) : "";
+    return "<div style='margin-bottom:6px; border-bottom:1px solid #333; padding-bottom:6px;'>" +
+      t.symbol + " " + t.contractType + (t.barrier !== null ? " (" + t.barrier + ")" : "") +
+      " | stake " + t.stake + " | <b>" + label + "</b> (" + profitText + ")" +
+      (reason ? "<br><span class='muted'>" + reason + "</span>" : "") +
+      "</div>";
   }).join("");
 }
+
+// ---------- Bot control (manual start/stop) ----------
 
 function placeTrade() {
   if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
     tradeStatus.textContent = "Not authenticated yet";
+    stopBot();
     return;
   }
 
-  const contractType = contractSelect.value;
+  const preset = BOT_PRESETS[selectedBot];
   const symbol = marketSelect.value;
   const stake = parseFloat(stakeAmount.value);
   const ticks = parseInt(ticksDuration.value, 10);
@@ -315,15 +387,15 @@ function placeTrade() {
   const parameters = {
     amount: stake,
     basis: "stake",
-    contract_type: contractType,
+    contract_type: preset.contract_type,
     currency: "USD",
     duration: ticks,
     duration_unit: "t",
     underlying_symbol: symbol
   };
 
-  if (["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(contractType)) {
-    parameters.barrier = barrierDigit.value;
+  if (preset.barrier !== null) {
+    parameters.barrier = preset.barrier;
   }
 
   const request = {
@@ -332,8 +404,49 @@ function placeTrade() {
     parameters: parameters
   };
 
-  tradeStatus.textContent = "Placing trade...";
+  tradeStatus.textContent = "Trade " + (tradesPlacedCount + 1) + " of " + maxTrades.value + " (" + preset.label + ")";
+  awaitingSettlement = true;
   authSocket.send(JSON.stringify(request));
+}
+
+function handleTradeSettled() {
+  tradesPlacedCount++;
+
+  if (!isAutoTrading) return;
+
+  const limit = parseInt(maxTrades.value, 10);
+  if (tradesPlacedCount >= limit) {
+    tradeStatus.textContent = "Stopped: reached " + limit + " trades";
+    stopBot();
+    return;
+  }
+
+  setTimeout(function () {
+    if (isAutoTrading) {
+      placeTrade();
+    }
+  }, 1500);
+}
+
+function startBot() {
+  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    tradeStatus.textContent = "Authenticate first";
+    return;
+  }
+  if (isAutoTrading) return;
+
+  isAutoTrading = true;
+  tradesPlacedCount = 0;
+  tradeStatus.textContent = "Starting...";
+  placeTrade();
+}
+
+function stopBot() {
+  isAutoTrading = false;
+  awaitingSettlement = false;
+  if (tradeStatus.textContent.indexOf("Stopped") === -1) {
+    tradeStatus.textContent = "Stopped";
+  }
 }
 
 // ---------- Event listeners ----------
@@ -368,10 +481,17 @@ if (accountType) {
   });
 }
 
-if (buyBtn) {
-  buyBtn.addEventListener("click", function (event) {
+if (startBtn) {
+  startBtn.addEventListener("click", function (event) {
     event.preventDefault();
-    placeTrade();
+    startBot();
+  });
+}
+
+if (stopBtn) {
+  stopBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    stopBot();
   });
 }
 
