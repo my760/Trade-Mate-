@@ -20,6 +20,8 @@ const connect = document.getElementById("connect");
 const marketSelect = document.getElementById("market");
 const digitDisplay = document.getElementById("digit");
 const digitStatsDisplay = document.getElementById("digitStats");
+const digitLive = document.getElementById("digitLive");
+const digitStatsLive = document.getElementById("digitStatsLive");
 const botGrid = document.getElementById("botGrid");
 
 const patToken = document.getElementById("patToken");
@@ -34,6 +36,9 @@ const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const tradeStatus = document.getElementById("tradeStatus");
 const tradeHistoryDisplay = document.getElementById("tradeHistory");
+const manualContract = document.getElementById("manualContract");
+const manualBarrier = document.getElementById("manualBarrier");
+const manualBuyBtn = document.getElementById("manualBuyBtn");
 
 let socket = null;
 let authSocket = null;
@@ -46,6 +51,7 @@ let tradesPlacedCount = 0;
 let awaitingSettlement = false;
 let lastPlacedContractId = null;
 let selectedBot = "over1";
+let pendingTrade = null; // { contract_type, barrier } for whichever trade was just sent
 const HISTORY_LENGTH = 500;
 
 // ---------- Tab switching ----------
@@ -161,6 +167,7 @@ function lastDigitOf(price) {
 function updateDigit(quote) {
   const lastDigit = lastDigitOf(quote);
   digitDisplay.textContent = lastDigit;
+  if (digitLive) digitLive.textContent = lastDigit;
 
   digitHistory.push(lastDigit);
   if (digitHistory.length > HISTORY_LENGTH) {
@@ -174,6 +181,7 @@ function renderDigitStats() {
 
   if (digitHistory.length === 0) {
     digitStatsDisplay.textContent = "Waiting for ticks...";
+    if (digitStatsLive) digitStatsLive.textContent = "Waiting for ticks...";
     return;
   }
 
@@ -185,6 +193,7 @@ function renderDigitStats() {
     .join("  ");
 
   digitStatsDisplay.textContent = "(" + digitHistory.length + " ticks) " + line;
+  if (digitStatsLive) digitStatsLive.textContent = "(" + digitHistory.length + " ticks) " + line;
 }
 
 function setStatus(message) {
@@ -295,19 +304,20 @@ async function connectAuthSocket() {
       if (data.msg_type === "buy" && data.buy) {
         const contractId = data.buy.contract_id;
         lastPlacedContractId = contractId;
-        const preset = BOT_PRESETS[selectedBot];
+        const trade = pendingTrade || { contract_type: "UNKNOWN", barrier: null };
 
         trades.unshift({
           contractId: contractId,
           symbol: marketSelect.value,
-          contractType: preset.contract_type,
-          barrier: preset.barrier,
+          contractType: trade.contract_type,
+          barrier: trade.barrier,
           stake: parseFloat(stakeAmount.value),
           status: "open",
           profit: null,
           exitDigit: null
         });
         renderTradeHistory();
+        pendingTrade = null;
 
         authSocket.send(JSON.stringify({
           proposal_open_contract: 1,
@@ -409,6 +419,8 @@ function placeTrade() {
     parameters.barrier = preset.barrier;
   }
 
+  pendingTrade = { contract_type: preset.contract_type, barrier: preset.barrier };
+
   const request = {
     buy: "1",
     price: stake.toString(),
@@ -417,6 +429,45 @@ function placeTrade() {
 
   tradeStatus.textContent = "Trade " + (tradesPlacedCount + 1) + " of " + maxTrades.value + " (" + preset.label + ")";
   awaitingSettlement = true;
+  authSocket.send(JSON.stringify(request));
+}
+
+function placeManualTrade() {
+  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    tradeStatus.textContent = "Authenticate first";
+    return;
+  }
+
+  const contractType = manualContract.value;
+  const symbol = marketSelect.value;
+  const stake = parseFloat(stakeAmount.value);
+  const ticks = parseInt(ticksDuration.value, 10);
+  const needsBarrier = ["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(contractType);
+  const barrier = needsBarrier ? manualBarrier.value : null;
+
+  const parameters = {
+    amount: stake,
+    basis: "stake",
+    contract_type: contractType,
+    currency: "USD",
+    duration: ticks,
+    duration_unit: "t",
+    underlying_symbol: symbol
+  };
+
+  if (needsBarrier) {
+    parameters.barrier = barrier;
+  }
+
+  pendingTrade = { contract_type: contractType, barrier: barrier };
+
+  const request = {
+    buy: "1",
+    price: stake.toString(),
+    parameters: parameters
+  };
+
+  tradeStatus.textContent = "Manual trade placed (" + contractType + ")";
   authSocket.send(JSON.stringify(request));
 }
 
@@ -503,6 +554,13 @@ if (stopBtn) {
   stopBtn.addEventListener("click", function (event) {
     event.preventDefault();
     stopBot();
+  });
+}
+
+if (manualBuyBtn) {
+  manualBuyBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    placeManualTrade();
   });
 }
 
