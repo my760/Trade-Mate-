@@ -6,6 +6,32 @@
   <title>Trade Mate</title>
   <link rel="stylesheet" href="style.css">
   <style>
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #333;
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      background: none;
+      border: none;
+      color: #999;
+      font-weight: bold;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+    }
+    .tab-btn.active {
+      color: #fff;
+      border-bottom-color: #ff4747;
+    }
+    .tab-panel {
+      display: none;
+    }
+    .tab-panel.active {
+      display: block;
+    }
     .bot-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -53,84 +79,97 @@
       </button>
     </section>
 
-    <section class="grid">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="bots">Bots</button>
+    </div>
 
-      <div class="card">
-        <small>MARKET</small>
-        <strong>Synthetic Indices</strong>
+    <!-- ===================== DASHBOARD TAB ===================== -->
+    <div class="tab-panel active" id="tab-dashboard">
+      <section class="grid">
 
-        <select id="market">
-          <option value="R_10">Volatility 10</option>
-          <option value="R_25">Volatility 25</option>
-          <option value="R_50">Volatility 50</option>
-          <option value="R_75">Volatility 75</option>
-          <option value="R_100">Volatility 100</option>
-        </select>
-      </div>
-
-      <div class="card">
-        <small>LAST DIGIT</small>
-        <strong id="digit">—</strong>
-        <span class="muted">Live feed coming next</span>
-      </div>
-
-      <div class="card">
-        <small>DIGIT STATS (last 500 ticks)</small>
-        <div id="digitStats">Waiting for ticks...</div>
-      </div>
-
-      <div class="card">
-        <small>BOTS</small>
-        <strong>Choose a strategy</strong>
-        <div class="bot-grid" id="botGrid">
-          <div class="bot-tile" data-bot="over1">Digit Over 1</div>
-          <div class="bot-tile" data-bot="over2">Digit Over 2</div>
-          <div class="bot-tile" data-bot="under8">Digit Under 8</div>
-          <div class="bot-tile" data-bot="under7">Digit Under 7</div>
-          <div class="bot-tile" data-bot="even">Digit Even</div>
-          <div class="bot-tile" data-bot="odd">Digit Odd</div>
-          <div class="bot-tile" data-bot="match5">Matches 5</div>
-          <div class="bot-tile" data-bot="diff5">Differs 5</div>
+        <div class="card">
+          <small>MARKET</small>
+          <strong>Synthetic Indices</strong>
+          <select id="market">
+            <option value="R_10">Volatility 10</option>
+            <option value="R_25">Volatility 25</option>
+            <option value="R_50">Volatility 50</option>
+            <option value="R_75">Volatility 75</option>
+            <option value="R_100">Volatility 100</option>
+          </select>
         </div>
-      </div>
 
-      <div class="card">
-        <small>ACCOUNT</small>
-        <strong>Authentication</strong>
-        <input type="password" id="patToken" placeholder="Paste your API token" style="width:100%; margin-top:8px;">
-        <select id="accountType" style="margin-top:8px;">
-          <option value="demo">Demo</option>
-          <option value="real">Real</option>
-        </select>
-        <button id="authBtn" class="button" style="margin-top:8px;">Authenticate</button>
-        <div id="accountStatus" class="muted" style="margin-top:8px;">Not authenticated</div>
-      </div>
+        <div class="card">
+          <small>LAST DIGIT</small>
+          <strong id="digit">—</strong>
+          <span class="muted">Live feed</span>
+        </div>
 
-      <div class="card">
-        <small>BALANCE</small>
-        <strong id="balance">—</strong>
-      </div>
+        <div class="card">
+          <small>DIGIT STATS (last 500 ticks)</small>
+          <div id="digitStats">Waiting for ticks...</div>
+        </div>
 
-      <div class="card">
-        <small>BOT CONTROL</small>
-        <input type="number" id="stakeAmount" placeholder="Stake (USD)" value="1" min="0.35" step="0.01" style="width:100%; margin-top:8px;">
-        <input type="number" id="ticksDuration" placeholder="Ticks duration" value="5" min="1" max="10" style="width:100%; margin-top:8px;">
-        <input type="number" id="maxTrades" placeholder="Stop after N trades" value="10" min="1" style="width:100%; margin-top:8px;">
-        <button id="startBtn" class="button" style="margin-top:8px;">Start</button>
-        <button id="stopBtn" class="button" style="margin-top:8px; background:#333;">Stop</button>
-        <div id="tradeStatus" class="muted" style="margin-top:8px;">Stopped</div>
-      </div>
+        <div class="card">
+          <small>ACCOUNT</small>
+          <strong>Authentication</strong>
+          <input type="password" id="patToken" placeholder="Paste your API token" style="width:100%; margin-top:8px;">
+          <select id="accountType" style="margin-top:8px;">
+            <option value="demo">Demo</option>
+            <option value="real">Real</option>
+          </select>
+          <button id="authBtn" class="button" style="margin-top:8px;">Authenticate</button>
+          <div id="accountStatus" class="muted" style="margin-top:8px;">Not authenticated</div>
+        </div>
 
-      <div class="card">
-        <small>TRADE HISTORY (predicted vs actual)</small>
-        <div id="tradeHistory">No trades yet</div>
-      </div>
+        <div class="card">
+          <small>BALANCE</small>
+          <strong id="balance">—</strong>
+        </div>
 
-    </section>
+      </section>
+    </div>
+
+    <!-- ===================== BOTS TAB ===================== -->
+    <div class="tab-panel" id="tab-bots">
+      <section class="grid">
+
+        <div class="card">
+          <small>BOTS</small>
+          <strong>Choose a strategy</strong>
+          <div class="bot-grid" id="botGrid">
+            <div class="bot-tile" data-bot="over1">Digit Over 1</div>
+            <div class="bot-tile" data-bot="over2">Digit Over 2</div>
+            <div class="bot-tile" data-bot="under8">Digit Under 8</div>
+            <div class="bot-tile" data-bot="under7">Digit Under 7</div>
+            <div class="bot-tile" data-bot="even">Digit Even</div>
+            <div class="bot-tile" data-bot="odd">Digit Odd</div>
+            <div class="bot-tile" data-bot="match5">Matches 5</div>
+            <div class="bot-tile" data-bot="diff5">Differs 5</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <small>BOT CONTROL</small>
+          <input type="number" id="stakeAmount" placeholder="Stake (USD)" value="1" min="0.35" step="0.01" style="width:100%; margin-top:8px;">
+          <input type="number" id="ticksDuration" placeholder="Ticks duration" value="5" min="1" max="10" style="width:100%; margin-top:8px;">
+          <input type="number" id="maxTrades" placeholder="Stop after N trades" value="10" min="1" style="width:100%; margin-top:8px;">
+          <button id="startBtn" class="button" style="margin-top:8px;">Start</button>
+          <button id="stopBtn" class="button" style="margin-top:8px; background:#333;">Stop</button>
+          <div id="tradeStatus" class="muted" style="margin-top:8px;">Stopped</div>
+        </div>
+
+        <div class="card">
+          <small>TRADE HISTORY (predicted vs actual)</small>
+          <div id="tradeHistory">No trades yet</div>
+        </div>
+
+      </section>
+    </div>
 
     <section class="panel">
       <h2>Trade Mate Features</h2>
-
       <div class="checks">
         <label>✓ Deriv account connection</label>
         <label>✓ Synthetic indices</label>
@@ -140,8 +179,8 @@
         <label>✓ Balance display</label>
         <label>✓ Trade history</label>
         <label>✓ Bot selection grid (manual start/stop)</label>
+        <label>✓ Dashboard/Bots tabs</label>
       </div>
-
     </section>
 
     <footer>
@@ -153,4 +192,4 @@
   <script src="app2.js"></script>
 
 </body>
-            </html>
+        </html>
