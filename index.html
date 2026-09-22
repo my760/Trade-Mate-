@@ -72,7 +72,7 @@
 
     <section class="hero">
       <h1>Trade Mate</h1>
-      <p>Pick a bot, then start/stop manually.</p>
+      <p>Pick a bot or trade manually — you're always in control.</p>
 
       <button id="connect" class="button">
         Connect Deriv
@@ -136,6 +136,12 @@
       <section class="grid">
 
         <div class="card">
+          <small>LIVE</small>
+          <strong>Last digit: <span id="digitLive">—</span></strong>
+          <div id="digitStatsLive" class="muted" style="margin-top:6px;">Waiting for ticks...</div>
+        </div>
+
+        <div class="card">
           <small>BOTS</small>
           <strong>Choose a strategy</strong>
           <div class="bot-grid" id="botGrid">
@@ -161,6 +167,21 @@
         </div>
 
         <div class="card">
+          <small>MANUAL TRADE</small>
+          <strong>One-off, your choice</strong>
+          <select id="manualContract" style="width:100%; margin-top:8px;">
+            <option value="DIGITOVER">Over</option>
+            <option value="DIGITUNDER">Under</option>
+            <option value="DIGITEVEN">Even</option>
+            <option value="DIGITODD">Odd</option>
+            <option value="DIGITMATCH">Matches</option>
+            <option value="DIGITDIFF">Differs</option>
+          </select>
+          <input type="number" id="manualBarrier" placeholder="Digit 0-9 (Over/Under/Match/Differ only)" min="0" max="9" style="width:100%; margin-top:8px;">
+          <button id="manualBuyBtn" class="button" style="margin-top:8px;">Place Manual Trade</button>
+        </div>
+
+        <div class="card">
           <small>TRADE HISTORY (predicted vs actual)</small>
           <div id="tradeHistory">No trades yet</div>
         </div>
@@ -180,6 +201,7 @@
         <label>✓ Trade history</label>
         <label>✓ Bot selection grid (manual start/stop)</label>
         <label>✓ Dashboard/Bots tabs</label>
+        <label>✓ Manual trade (any contract, any digit)</label>
       </div>
     </section>
 
@@ -192,4 +214,4 @@
   <script src="app2.js"></script>
 
 </body>
-        </html>
+  </html>
