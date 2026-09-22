@@ -2,7 +2,7 @@ window.onerror = function (msg) {
   document.getElementById("status").textContent = "JS Error: " + msg;
 };
 
-const APP_ID = "34qc7VTAO1l6XjqsL06jn"; // your registered Deriv App ID
+const APP_ID = "34qc7VTAO1l6XjqsL06jn";
 
 const status = document.getElementById("status");
 const connect = document.getElementById("connect");
@@ -22,12 +22,14 @@ const barrierDigit = document.getElementById("barrierDigit");
 const ticksDuration = document.getElementById("ticksDuration");
 const buyBtn = document.getElementById("buyBtn");
 const tradeStatus = document.getElementById("tradeStatus");
+const tradeHistoryDisplay = document.getElementById("tradeHistory");
 
 let socket = null;
 let authSocket = null;
 let currentSymbol = null;
 let digitHistory = [];
 let accounts = {};
+let trades = []; // { contractId, symbol, contractType, stake, barrier, status, profit }
 const HISTORY_LENGTH = 500;
 
 // ---------- Public tick socket ----------
@@ -214,116 +216,4 @@ async function connectAuthSocket() {
 
     const wsUrl = otpData.data.url;
 
-    if (authSocket) authSocket.close();
-    authSocket = new WebSocket(wsUrl);
-
-    authSocket.onopen = function () {
-      accountStatus.textContent = "Trading ready (" + type + ")";
-      authSocket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-    };
-
-    authSocket.onerror = function () {
-      accountStatus.textContent = "Trading connection error";
-    };
-
-    authSocket.onclose = function (event) {
-      accountStatus.textContent = "Trading connection closed (" + event.code + ")";
-    };
-
-    authSocket.onmessage = function (event) {
-      const data = JSON.parse(event.data);
-      console.log("Auth message:", data);
-
-      if (data.error) {
-        tradeStatus.textContent = "Error: " + data.error.message;
-        return;
-      }
-
-      if (data.msg_type === "balance" && data.balance) {
-        balanceDisplay.textContent = data.balance.balance + " " + data.balance.currency;
-      }
-
-      if (data.msg_type === "buy" && data.buy) {
-        tradeStatus.textContent = "Bought! Contract ID: " + data.buy.contract_id + ", Payout: " + data.buy.payout;
-      }
-    };
-  } catch (e) {
-    accountStatus.textContent = "Connection failed: " + e.message;
-  }
-}
-
-function placeTrade() {
-  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
-    tradeStatus.textContent = "Not authenticated yet";
-    return;
-  }
-
-  const contractType = contractSelect.value;
-  const symbol = marketSelect.value;
-  const stake = parseFloat(stakeAmount.value);
-  const ticks = parseInt(ticksDuration.value, 10);
-
-  const parameters = {
-    amount: stake,
-    basis: "stake",
-    contract_type: contractType,
-    currency: "USD",
-    duration: ticks,
-    duration_unit: "t",
-    underlying_symbol: symbol
-  };
-
-  if (["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(contractType)) {
-    parameters.barrier = barrierDigit.value;
-  }
-
-  const request = {
-    buy: "1",
-    price: stake.toString(),
-    parameters: parameters
-  };
-
-  tradeStatus.textContent = "Placing trade...";
-  authSocket.send(JSON.stringify(request));
-}
-
-// ---------- Event listeners ----------
-
-if (connect) {
-  connect.addEventListener("click", function (event) {
-    event.preventDefault();
-    connectDeriv();
-  });
-}
-
-if (marketSelect) {
-  marketSelect.addEventListener("change", function () {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      subscribeToTicks(marketSelect.value);
-    }
-  });
-}
-
-if (authBtn) {
-  authBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    authenticate();
-  });
-}
-
-if (accountType) {
-  accountType.addEventListener("change", function () {
-    if (Object.keys(accounts).length > 0) {
-      connectAuthSocket();
-    }
-  });
-}
-
-if (buyBtn) {
-  buyBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    placeTrade();
-  });
-}
-
-setStatus("Not connected");
+    if (authSocket
