@@ -77,6 +77,32 @@
         <div id="digitStats">Waiting for ticks...</div>
       </div>
 
+      <div class="card">
+        <small>ACCOUNT</small>
+        <strong>Authentication</strong>
+        <input type="password" id="patToken" placeholder="Paste your API token" style="width:100%; margin-top:8px;">
+        <select id="accountType" style="margin-top:8px;">
+          <option value="demo">Demo</option>
+          <option value="real">Real</option>
+        </select>
+        <button id="authBtn" class="button" style="margin-top:8px;">Authenticate</button>
+        <div id="accountStatus" class="muted" style="margin-top:8px;">Not authenticated</div>
+      </div>
+
+      <div class="card">
+        <small>BALANCE</small>
+        <strong id="balance">—</strong>
+      </div>
+
+      <div class="card">
+        <small>TRADE</small>
+        <input type="number" id="stakeAmount" placeholder="Stake (USD)" value="1" min="0.35" step="0.01" style="width:100%; margin-top:8px;">
+        <input type="number" id="barrierDigit" placeholder="Digit 0-9 (Over/Under/Match/Differ only)" min="0" max="9" style="width:100%; margin-top:8px;">
+        <input type="number" id="ticksDuration" placeholder="Ticks duration" value="5" min="1" max="10" style="width:100%; margin-top:8px;">
+        <button id="buyBtn" class="button" style="margin-top:8px;">Place Trade</button>
+        <div id="tradeStatus" class="muted" style="margin-top:8px;">No trade yet</div>
+      </div>
+
     </section>
 
     <section class="panel">
@@ -87,8 +113,8 @@
         <label>✓ Synthetic indices</label>
         <label>✓ Live tick stream</label>
         <label>✓ Digit statistics</label>
-        <label>□ Contract purchase</label>
-        <label>□ Balance display</label>
+        <label>✓ Contract purchase</label>
+        <label>✓ Balance display</label>
       </div>
 
     </section>
@@ -102,4 +128,4 @@
   <script src="app2.js"></script>
 
 </body>
-          </html>
+                                        </html>
