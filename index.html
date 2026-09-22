@@ -5,6 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Trade Mate</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .bot-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .bot-tile {
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      background: #1a1a1a;
+      font-size: 13px;
+    }
+    .bot-tile.selected {
+      border-color: #ff4747;
+      background: #2a1414;
+      color: #ff8080;
+    }
+  </style>
 </head>
 
 <body>
@@ -24,7 +46,7 @@
 
     <section class="hero">
       <h1>Trade Mate</h1>
-      <p>Simple Deriv trading dashboard.</p>
+      <p>Pick a bot, then start/stop manually.</p>
 
       <button id="connect" class="button">
         Connect Deriv
@@ -47,34 +69,29 @@
       </div>
 
       <div class="card">
-        <small>CONTRACT</small>
-        <strong>Digit</strong>
-
-        <select id="contract">
-          <option value="DIGITOVER">Over</option>
-          <option value="DIGITUNDER">Under</option>
-          <option value="DIGITEVEN">Even</option>
-          <option value="DIGITODD">Odd</option>
-          <option value="DIGITMATCH">Matches</option>
-          <option value="DIGITDIFF">Differs</option>
-        </select>
-      </div>
-
-      <div class="card">
         <small>LAST DIGIT</small>
         <strong id="digit">—</strong>
         <span class="muted">Live feed coming next</span>
       </div>
 
       <div class="card">
-        <small>SIGNAL</small>
-        <strong id="signal">WAIT</strong>
-        <span class="muted">No automatic trade yet</span>
+        <small>DIGIT STATS (last 500 ticks)</small>
+        <div id="digitStats">Waiting for ticks...</div>
       </div>
 
       <div class="card">
-        <small>DIGIT STATS (last 500 ticks)</small>
-        <div id="digitStats">Waiting for ticks...</div>
+        <small>BOTS</small>
+        <strong>Choose a strategy</strong>
+        <div class="bot-grid" id="botGrid">
+          <div class="bot-tile" data-bot="over1">Digit Over 1</div>
+          <div class="bot-tile" data-bot="over2">Digit Over 2</div>
+          <div class="bot-tile" data-bot="under8">Digit Under 8</div>
+          <div class="bot-tile" data-bot="under7">Digit Under 7</div>
+          <div class="bot-tile" data-bot="even">Digit Even</div>
+          <div class="bot-tile" data-bot="odd">Digit Odd</div>
+          <div class="bot-tile" data-bot="match5">Matches 5</div>
+          <div class="bot-tile" data-bot="diff5">Differs 5</div>
+        </div>
       </div>
 
       <div class="card">
@@ -95,16 +112,17 @@
       </div>
 
       <div class="card">
-        <small>TRADE</small>
+        <small>BOT CONTROL</small>
         <input type="number" id="stakeAmount" placeholder="Stake (USD)" value="1" min="0.35" step="0.01" style="width:100%; margin-top:8px;">
-        <input type="number" id="barrierDigit" placeholder="Digit 0-9 (Over/Under/Match/Differ only)" min="0" max="9" style="width:100%; margin-top:8px;">
         <input type="number" id="ticksDuration" placeholder="Ticks duration" value="5" min="1" max="10" style="width:100%; margin-top:8px;">
-        <button id="buyBtn" class="button" style="margin-top:8px;">Place Trade</button>
-        <div id="tradeStatus" class="muted" style="margin-top:8px;">No trade yet</div>
+        <input type="number" id="maxTrades" placeholder="Stop after N trades" value="10" min="1" style="width:100%; margin-top:8px;">
+        <button id="startBtn" class="button" style="margin-top:8px;">Start</button>
+        <button id="stopBtn" class="button" style="margin-top:8px; background:#333;">Stop</button>
+        <div id="tradeStatus" class="muted" style="margin-top:8px;">Stopped</div>
       </div>
 
       <div class="card">
-        <small>TRADE HISTORY</small>
+        <small>TRADE HISTORY (predicted vs actual)</small>
         <div id="tradeHistory">No trades yet</div>
       </div>
 
@@ -121,6 +139,7 @@
         <label>✓ Contract purchase</label>
         <label>✓ Balance display</label>
         <label>✓ Trade history</label>
+        <label>✓ Bot selection grid (manual start/stop)</label>
       </div>
 
     </section>
@@ -134,4 +153,4 @@
   <script src="app2.js"></script>
 
 </body>
-</html>
+            </html>
