@@ -84,8 +84,7 @@ function subscribeToTicks(symbol) {
     ticks_history: symbol,
     end: "latest",
     count: HISTORY_LENGTH,
-    style: "ticks",
-    subscribe: 0
+    style: "ticks"
   }));
 
   // then start the live stream
