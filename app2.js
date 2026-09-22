@@ -8,9 +8,12 @@ const marketSelect = document.getElementById("market");
 const contractSelect = document.getElementById("contract");
 const digitDisplay = document.getElementById("digit");
 const signalDisplay = document.getElementById("signal");
+const digitStatsDisplay = document.getElementById("digitStats");
 
 let socket = null;
 let currentSymbol = null;
+let digitHistory = [];
+const HISTORY_LENGTH = 500;
 
 function connectDeriv() {
   setStatus("Connecting...");
@@ -53,6 +56,11 @@ function connectDeriv() {
         });
     }
 
+    if (data.msg_type === "history" && data.history) {
+      digitHistory = data.history.prices.map(p => lastDigitOf(p));
+      renderDigitStats();
+    }
+
     if (data.msg_type === "tick" && data.tick) {
       updateDigit(data.tick.quote);
     }
@@ -68,13 +76,54 @@ function subscribeToTicks(symbol) {
     socket.send(JSON.stringify({ forget_all: "ticks" }));
   }
   currentSymbol = symbol;
+  digitHistory = [];
+  renderDigitStats();
+
+  // one-time backfill of the last 500 ticks
+  socket.send(JSON.stringify({
+    ticks_history: symbol,
+    end: "latest",
+    count: HISTORY_LENGTH,
+    style: "ticks",
+    subscribe: 0
+  }));
+
+  // then start the live stream
   socket.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
 }
 
+function lastDigitOf(price) {
+  const str = price.toString();
+  return parseInt(str[str.length - 1], 10);
+}
+
 function updateDigit(quote) {
-  const quoteStr = quote.toString();
-  const lastDigit = quoteStr[quoteStr.length - 1];
+  const lastDigit = lastDigitOf(quote);
   digitDisplay.textContent = lastDigit;
+
+  digitHistory.push(lastDigit);
+  if (digitHistory.length > HISTORY_LENGTH) {
+    digitHistory.shift();
+  }
+  renderDigitStats();
+}
+
+function renderDigitStats() {
+  if (!digitStatsDisplay) return;
+
+  if (digitHistory.length === 0) {
+    digitStatsDisplay.textContent = "Waiting for ticks...";
+    return;
+  }
+
+  const counts = new Array(10).fill(0);
+  digitHistory.forEach(d => counts[d]++);
+
+  const line = counts
+    .map((c, digit) => digit + ":" + c)
+    .join("  ");
+
+  digitStatsDisplay.textContent = "(" + digitHistory.length + " ticks) " + line;
 }
 
 function setStatus(message) {
