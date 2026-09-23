@@ -136,6 +136,18 @@
       <section class="grid">
 
         <div class="card">
+          <small>MARKET</small>
+          <strong>Trading on</strong>
+          <select id="marketBots" style="width:100%; margin-top:8px;">
+            <option value="R_10">Volatility 10</option>
+            <option value="R_25">Volatility 25</option>
+            <option value="R_50">Volatility 50</option>
+            <option value="R_75">Volatility 75</option>
+            <option value="R_100">Volatility 100</option>
+          </select>
+        </div>
+
+        <div class="card">
           <small>LIVE</small>
           <strong>Last digit: <span id="digitLive">—</span></strong>
           <div id="digitStatsLive" class="muted" style="margin-top:6px;">Waiting for ticks...</div>
@@ -210,6 +222,7 @@
         <label>✓ Dashboard/Bots tabs</label>
         <label>✓ Manual trade (any contract, any digit)</label>
         <label>✓ Digit percentage analysis</label>
+        <label>✓ Market selector on Bots tab</label>
       </div>
     </section>
 
@@ -222,4 +235,4 @@
   <script src="app2.js"></script>
 
 </body>
-              </html>
+  </html>
