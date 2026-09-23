@@ -22,6 +22,8 @@ const digitDisplay = document.getElementById("digit");
 const digitStatsDisplay = document.getElementById("digitStats");
 const digitLive = document.getElementById("digitLive");
 const digitStatsLive = document.getElementById("digitStatsLive");
+const analysisDigit = document.getElementById("analysisDigit");
+const analysisResult = document.getElementById("analysisResult");
 const botGrid = document.getElementById("botGrid");
 
 const patToken = document.getElementById("patToken");
@@ -51,7 +53,7 @@ let tradesPlacedCount = 0;
 let awaitingSettlement = false;
 let lastPlacedContractId = null;
 let selectedBot = "over1";
-let pendingTrade = null; // { contract_type, barrier } for whichever trade was just sent
+let pendingTrade = null;
 const HISTORY_LENGTH = 500;
 
 // ---------- Tab switching ----------
@@ -182,6 +184,7 @@ function renderDigitStats() {
   if (digitHistory.length === 0) {
     digitStatsDisplay.textContent = "Waiting for ticks...";
     if (digitStatsLive) digitStatsLive.textContent = "Waiting for ticks...";
+    renderAnalysis();
     return;
   }
 
@@ -194,6 +197,44 @@ function renderDigitStats() {
 
   digitStatsDisplay.textContent = "(" + digitHistory.length + " ticks) " + line;
   if (digitStatsLive) digitStatsLive.textContent = "(" + digitHistory.length + " ticks) " + line;
+
+  renderAnalysis();
+}
+
+function renderAnalysis() {
+  if (!analysisResult) return;
+
+  if (digitHistory.length === 0) {
+    analysisResult.textContent = "Waiting for ticks...";
+    return;
+  }
+
+  const target = parseInt(analysisDigit.value, 10);
+  if (isNaN(target) || target < 0 || target > 9) {
+    analysisResult.textContent = "Enter a digit 0-9";
+    return;
+  }
+
+  const total = digitHistory.length;
+  let matchCount = 0, overCount = 0, underCount = 0, evenCount = 0, oddCount = 0;
+
+  digitHistory.forEach(d => {
+    if (d === target) matchCount++;
+    if (d > target) overCount++;
+    if (d < target) underCount++;
+    if (d % 2 === 0) evenCount++;
+    else oddCount++;
+  });
+
+  const pct = n => ((n / total) * 100).toFixed(1) + "%";
+
+  analysisResult.innerHTML =
+    "Matches " + target + ": " + pct(matchCount) + "<br>" +
+    "Differs " + target + ": " + pct(total - matchCount) + "<br>" +
+    "Over " + target + ": " + pct(overCount) + "<br>" +
+    "Under " + target + ": " + pct(underCount) + "<br>" +
+    "Even: " + pct(evenCount) + " | Odd: " + pct(oddCount) +
+    "<br><span style='opacity:0.6'>(based on last " + total + " ticks)</span>";
 }
 
 function setStatus(message) {
@@ -562,6 +603,10 @@ if (manualBuyBtn) {
     event.preventDefault();
     placeManualTrade();
   });
+}
+
+if (analysisDigit) {
+  analysisDigit.addEventListener("input", renderAnalysis);
 }
 
 setStatus("Not connected");
