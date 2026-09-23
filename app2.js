@@ -18,6 +18,7 @@ const BOT_PRESETS = {
 const status = document.getElementById("status");
 const connect = document.getElementById("connect");
 const marketSelect = document.getElementById("market");
+const marketBotsSelect = document.getElementById("marketBots");
 const digitDisplay = document.getElementById("digit");
 const digitStatsDisplay = document.getElementById("digitStats");
 const digitLive = document.getElementById("digitLive");
@@ -117,15 +118,12 @@ function connectDeriv() {
     }
 
     if (data.msg_type === "active_symbols") {
-      marketSelect.innerHTML = "";
-      data.active_symbols
+      const options = data.active_symbols
         .filter(s => s.market === "synthetic_index")
-        .forEach(s => {
-          const opt = document.createElement("option");
-          opt.value = s.underlying_symbol;
-          opt.textContent = s.underlying_symbol_name;
-          marketSelect.appendChild(opt);
-        });
+        .map(s => "<option value='" + s.underlying_symbol + "'>" + s.underlying_symbol_name + "</option>")
+        .join("");
+      marketSelect.innerHTML = options;
+      if (marketBotsSelect) marketBotsSelect.innerHTML = options;
     }
 
     if (data.msg_type === "history" && data.history) {
@@ -563,6 +561,16 @@ if (connect) {
 
 if (marketSelect) {
   marketSelect.addEventListener("change", function () {
+    if (marketBotsSelect) marketBotsSelect.value = marketSelect.value;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      subscribeToTicks(marketSelect.value);
+    }
+  });
+}
+
+if (marketBotsSelect) {
+  marketBotsSelect.addEventListener("change", function () {
+    marketSelect.value = marketBotsSelect.value;
     if (socket && socket.readyState === WebSocket.OPEN) {
       subscribeToTicks(marketSelect.value);
     }
