@@ -5,14 +5,12 @@ window.onerror = function (msg) {
 const APP_ID = "34qc7VTAO1l6XjqsL06jn";
 
 const BOT_PRESETS = {
-  over1: { label: "Digit Over 1", contract_type: "DIGITOVER", barrier: "1" },
-  over2: { label: "Digit Over 2", contract_type: "DIGITOVER", barrier: "2" },
-  under8: { label: "Digit Under 8", contract_type: "DIGITUNDER", barrier: "8" },
-  under7: { label: "Digit Under 7", contract_type: "DIGITUNDER", barrier: "7" },
-  even: { label: "Digit Even", contract_type: "DIGITEVEN", barrier: null },
-  odd: { label: "Digit Odd", contract_type: "DIGITODD", barrier: null },
-  match5: { label: "Digit Matches 5", contract_type: "DIGITMATCH", barrier: "5" },
-  diff5: { label: "Digit Differs 5", contract_type: "DIGITDIFF", barrier: "5" }
+  over: { label: "Digit Over", contract_type: "DIGITOVER", needsBarrier: true },
+  under: { label: "Digit Under", contract_type: "DIGITUNDER", needsBarrier: true },
+  match: { label: "Digit Matches", contract_type: "DIGITMATCH", needsBarrier: true },
+  diff: { label: "Digit Differs", contract_type: "DIGITDIFF", needsBarrier: true },
+  even: { label: "Digit Even", contract_type: "DIGITEVEN", needsBarrier: false },
+  odd: { label: "Digit Odd", contract_type: "DIGITODD", needsBarrier: false }
 };
 
 const status = document.getElementById("status");
@@ -26,6 +24,7 @@ const digitStatsLive = document.getElementById("digitStatsLive");
 const analysisDigit = document.getElementById("analysisDigit");
 const analysisResult = document.getElementById("analysisResult");
 const botGrid = document.getElementById("botGrid");
+const botBarrier = document.getElementById("botBarrier");
 
 const patToken = document.getElementById("patToken");
 const accountType = document.getElementById("accountType");
@@ -53,7 +52,7 @@ let isAutoTrading = false;
 let tradesPlacedCount = 0;
 let awaitingSettlement = false;
 let lastPlacedContractId = null;
-let selectedBot = "over1";
+let selectedBot = "over";
 let pendingTrade = null;
 const HISTORY_LENGTH = 500;
 
@@ -443,6 +442,7 @@ function placeTrade() {
   const symbol = marketSelect.value;
   const stake = parseFloat(stakeAmount.value);
   const ticks = parseInt(ticksDuration.value, 10);
+  const barrier = preset.needsBarrier ? botBarrier.value : null;
 
   const parameters = {
     amount: stake,
@@ -454,11 +454,11 @@ function placeTrade() {
     underlying_symbol: symbol
   };
 
-  if (preset.barrier !== null) {
-    parameters.barrier = preset.barrier;
+  if (barrier !== null) {
+    parameters.barrier = barrier;
   }
 
-  pendingTrade = { contract_type: preset.contract_type, barrier: preset.barrier };
+  pendingTrade = { contract_type: preset.contract_type, barrier: barrier };
 
   const request = {
     buy: "1",
@@ -466,7 +466,7 @@ function placeTrade() {
     parameters: parameters
   };
 
-  tradeStatus.textContent = "Trade " + (tradesPlacedCount + 1) + " of " + maxTrades.value + " (" + preset.label + ")";
+  tradeStatus.textContent = "Trade " + (tradesPlacedCount + 1) + " of " + maxTrades.value + " (" + preset.label + (barrier !== null ? " " + barrier : "") + ")";
   awaitingSettlement = true;
   authSocket.send(JSON.stringify(request));
 }
