@@ -650,4 +650,90 @@ function stopBot() {
 
 // ---------- Event listeners ----------
 
-if (conn
+if (connect) {
+  connect.addEventListener("click", function (event) {
+    event.preventDefault();
+    connectDeriv();
+  });
+}
+
+if (marketSelect) {
+  marketSelect.addEventListener("change", function () {
+    if (marketBotsSelect) marketBotsSelect.value = marketSelect.value;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      subscribeToTicks(marketSelect.value);
+    }
+  });
+}
+
+if (marketBotsSelect) {
+  marketBotsSelect.addEventListener("change", function () {
+    marketSelect.value = marketBotsSelect.value;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      subscribeToTicks(marketSelect.value);
+    }
+  });
+}
+
+if (authBtn) {
+  authBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    authenticate();
+  });
+}
+
+if (accountType) {
+  accountType.addEventListener("change", function () {
+    if (Object.keys(accounts).length > 0) {
+      connectAuthSocket();
+    }
+  });
+}
+
+if (startBtn) {
+  startBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    startBot();
+  });
+}
+
+if (stopBtn) {
+  stopBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    stopBot();
+  });
+}
+
+if (manualBuyBtn) {
+  manualBuyBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    placeManualTrade();
+  });
+}
+
+if (analysisDigit) {
+  analysisDigit.addEventListener("input", renderAnalysis);
+}
+
+if (depositBtn) {
+  depositBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    requestCashier("deposit");
+  });
+}
+
+if (withdrawBtn) {
+  withdrawBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    requestCashier("withdraw");
+  });
+}
+
+if (topupBtn) {
+  topupBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    topUpDemo();
+  });
+}
+
+setStatus("Not connected");
