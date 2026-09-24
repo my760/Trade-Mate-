@@ -164,19 +164,18 @@
           <small>BOTS</small>
           <strong>Choose a strategy</strong>
           <div class="bot-grid" id="botGrid">
-            <div class="bot-tile" data-bot="over1">Digit Over 1</div>
-            <div class="bot-tile" data-bot="over2">Digit Over 2</div>
-            <div class="bot-tile" data-bot="under8">Digit Under 8</div>
-            <div class="bot-tile" data-bot="under7">Digit Under 7</div>
-            <div class="bot-tile" data-bot="even">Digit Even</div>
-            <div class="bot-tile" data-bot="odd">Digit Odd</div>
-            <div class="bot-tile" data-bot="match5">Matches 5</div>
-            <div class="bot-tile" data-bot="diff5">Differs 5</div>
+            <div class="bot-tile" data-bot="over">Over</div>
+            <div class="bot-tile" data-bot="under">Under</div>
+            <div class="bot-tile" data-bot="match">Matches</div>
+            <div class="bot-tile" data-bot="diff">Differs</div>
+            <div class="bot-tile" data-bot="even">Even</div>
+            <div class="bot-tile" data-bot="odd">Odd</div>
           </div>
         </div>
 
         <div class="card">
           <small>BOT CONTROL</small>
+          <input type="number" id="botBarrier" placeholder="Digit 0-9 (Over/Under/Match/Differ only)" min="0" max="9" value="5" style="width:100%; margin-top:8px;">
           <input type="number" id="stakeAmount" placeholder="Stake (USD)" value="1" min="0.35" step="0.01" style="width:100%; margin-top:8px;">
           <input type="number" id="ticksDuration" placeholder="Ticks duration" value="5" min="1" max="10" style="width:100%; margin-top:8px;">
           <input type="number" id="maxTrades" placeholder="Stop after N trades" value="10" min="1" style="width:100%; margin-top:8px;">
@@ -218,7 +217,7 @@
         <label>✓ Contract purchase</label>
         <label>✓ Balance display</label>
         <label>✓ Trade history</label>
-        <label>✓ Bot selection grid (manual start/stop)</label>
+        <label>✓ Bot selection grid (choose type + digit)</label>
         <label>✓ Dashboard/Bots tabs</label>
         <label>✓ Manual trade (any contract, any digit)</label>
         <label>✓ Digit percentage analysis</label>
@@ -235,4 +234,4 @@
   <script src="app2.js"></script>
 
 </body>
-  </html>
+          </html>
