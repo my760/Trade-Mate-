@@ -1,247 +1,240 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trade Mate</title>
-  <link rel="stylesheet" href="style.css">
-  <style>
-    .tabs {
-      display: flex;
-      border-bottom: 1px solid #333;
-      margin-bottom: 16px;
-    }
-    .tab-btn {
-      flex: 1;
-      padding: 12px;
-      text-align: center;
-      background: none;
-      border: none;
-      color: #999;
-      font-weight: bold;
-      cursor: pointer;
-      border-bottom: 3px solid transparent;
-    }
-    .tab-btn.active {
-      color: #fff;
-      border-bottom-color: #ff4747;
-    }
-    .tab-panel {
-      display: none;
-    }
-    .tab-panel.active {
-      display: block;
-    }
-    .bot-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 8px;
-    }
-    .bot-tile {
-      border: 1px solid #444;
-      border-radius: 8px;
-      padding: 10px;
-      text-align: center;
-      cursor: pointer;
-      background: #1a1a1a;
-      font-size: 13px;
-    }
-    .bot-tile.selected {
-      border-color: #ff4747;
-      background: #2a1414;
-      color: #ff8080;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trade Mate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000; --panel:#0b0b0b; --panel2:#141414; --border:#232323;
+    --text:#f2f2f2; --muted:#7a7a7a; --green:#1fdb8a; --red:#ff4d5e; --accent:#2dd4bf;
+    box-sizing:border-box;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif}
+  .mono{font-family:'JetBrains Mono',monospace}
+  header{
+    position:sticky; top:0; z-index:10; padding:14px 16px;
+    background:rgba(0,0,0,0.9); backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .brand{font-weight:700; font-size:18px; letter-spacing:-0.02em}
+  .brand span{color:var(--accent)}
+  #status{
+    font-family:'JetBrains Mono',monospace; font-weight:600; font-size:12px;
+    background:var(--panel2); border:1px solid var(--border); border-radius:20px;
+    padding:6px 12px; color:var(--muted);
+  }
+  .tabs{display:flex; padding:0 16px; border-bottom:1px solid var(--border)}
+  .tab-btn{
+    flex:1; text-align:center; padding:12px 0; color:var(--muted);
+    font-size:13px; font-weight:600; border-bottom:2px solid transparent;
+    background:none; border-top:none; border-left:none; border-right:none;
+    font-family:inherit; cursor:pointer;
+  }
+  .tab-btn.active{color:var(--text); border-bottom-color:var(--accent)}
+  .tab-panel{display:none}
+  .tab-panel.active{display:block}
+  main{padding:16px; max-width:520px; margin:0 auto}
+  .hero{padding:16px 0}
+  .hero h1{font-size:22px; margin:0 0 4px}
+  .hero p{color:var(--muted); font-size:13px; margin:0 0 12px}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px}
+  .card.full{grid-column:1 / -1}
+  .label{font-size:10px; letter-spacing:0.08em; color:var(--muted); text-transform:uppercase; margin-bottom:6px}
+  .value{font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:700}
+  select, input{
+    width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:9px 10px; font-size:13px; margin-top:8px; font-family:inherit;
+  }
+  .check-row{display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:var(--muted)}
+  .check-row input[type=checkbox]{width:auto; margin:0}
+  .bot-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:8px}
+  .bot-tile{
+    text-align:center; padding:12px 6px; background:var(--panel2); border:1px solid var(--border);
+    border-radius:10px; font-size:12px; font-weight:600; color:var(--muted); cursor:pointer;
+  }
+  .bot-tile.selected{border-color:var(--accent); color:var(--accent); background:rgba(45,212,191,0.08)}
+  .btn{display:block; width:100%; text-align:center; padding:12px; border-radius:8px; font-weight:700; font-size:14px; margin-top:10px; border:none; cursor:pointer; font-family:inherit}
+  .btn-primary{background:var(--accent); color:#04201c}
+  .btn-secondary{background:var(--panel2); color:var(--text); border:1px solid var(--border)}
+  .signal{display:flex; align-items:center; justify-content:space-between; padding:14px; border-radius:12px; background:linear-gradient(135deg,rgba(45,212,191,0.12),rgba(31,219,138,0.06)); border:1px solid rgba(45,212,191,0.3)}
+  .signal .value{color:var(--accent); font-size:16px}
+  .muted{color:var(--muted); font-size:12px}
+  footer{text-align:center; padding:20px; color:var(--muted); font-size:11px}
+</style>
 </head>
-
 <body>
 
-  <main class="app">
+<header>
+  <div class="brand">Trade<span>Mate</span></div>
+  <div id="status" class="mono">Not connected</div>
+</header>
 
-    <header>
-      <div>
-        <div class="brand">Trade <span>Mate</span></div>
-        <div class="sub">Deriv Synthetic Trading Dashboard</div>
+<main>
+
+  <div class="hero">
+    <h1>Trade Mate</h1>
+    <p>Pick a bot or trade manually — you're always in control.</p>
+    <button id="connect" class="btn btn-primary">Connect Deriv</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="bots">Bots</button>
+  </div>
+
+  <!-- ===================== DASHBOARD TAB ===================== -->
+  <div class="tab-panel active" id="tab-dashboard">
+    <div class="grid" style="margin-top:14px">
+
+      <div class="card">
+        <div class="label">Market</div>
+        <select id="market">
+          <option value="R_10">Volatility 10</option>
+          <option value="R_25">Volatility 25</option>
+          <option value="R_50">Volatility 50</option>
+          <option value="R_75">Volatility 75</option>
+          <option value="R_100">Volatility 100</option>
+        </select>
       </div>
 
-      <div id="status" class="status">
-        Not connected
+      <div class="card">
+        <div class="label">Last Digit</div>
+        <div class="value mono" id="digit">—</div>
       </div>
-    </header>
 
-    <section class="hero">
-      <h1>Trade Mate</h1>
-      <p>Pick a bot or trade manually — you're always in control.</p>
+      <div class="card full">
+        <div class="label">Digit Stats (last 500 ticks)</div>
+        <div id="digitStats" class="muted mono">Waiting for ticks...</div>
+      </div>
 
-      <button id="connect" class="button">
-        Connect Deriv
-      </button>
-    </section>
-
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
-      <button class="tab-btn" data-tab="bots">Bots</button>
-    </div>
-
-    <!-- ===================== DASHBOARD TAB ===================== -->
-    <div class="tab-panel active" id="tab-dashboard">
-      <section class="grid">
-
-        <div class="card">
-          <small>MARKET</small>
-          <strong>Synthetic Indices</strong>
-          <select id="market">
-            <option value="R_10">Volatility 10</option>
-            <option value="R_25">Volatility 25</option>
-            <option value="R_50">Volatility 50</option>
-            <option value="R_75">Volatility 75</option>
-            <option value="R_100">Volatility 100</option>
-          </select>
-        </div>
-
-        <div class="card">
-          <small>LAST DIGIT</small>
-          <strong id="digit">—</strong>
-          <span class="muted">Live feed</span>
-        </div>
-
-        <div class="card">
-          <small>DIGIT STATS (last 500 ticks)</small>
-          <div id="digitStats">Waiting for ticks...</div>
-        </div>
-
-        <div class="card">
-          <small>ACCOUNT</small>
-          <strong>Authentication</strong>
-          <input type="password" id="patToken" placeholder="Paste your API token" style="width:100%; margin-top:8px;">
-          <select id="accountType" style="margin-top:8px;">
-            <option value="demo">Demo</option>
-            <option value="real">Real</option>
-          </select>
-          <button id="authBtn" class="button" style="margin-top:8px;">Authenticate</button>
-          <div id="accountStatus" class="muted" style="margin-top:8px;">Not authenticated</div>
-        </div>
-
-        <div class="card">
-          <small>BALANCE</small>
-          <strong id="balance">—</strong>
-        </div>
-
-        <div class="card">
-          <small>WALLET</small>
-          <strong>Deposit / Withdraw</strong>
-          <button id="depositBtn" class="button" style="margin-top:8px;">Deposit</button>
-          <button id="withdrawBtn" class="button" style="margin-top:8px; background:#333;">Withdraw</button>
-          <button id="topupBtn" class="button" style="margin-top:8px; background:#333;">Top Up Demo</button>
-          <div id="walletStatus" class="muted" style="margin-top:8px;"></div>
-        </div>
-
-      </section>
-    </div>
-
-    <!-- ===================== BOTS TAB ===================== -->
-    <div class="tab-panel" id="tab-bots">
-      <section class="grid">
-
-        <div class="card">
-          <small>MARKET</small>
-          <strong>Trading on</strong>
-          <select id="marketBots" style="width:100%; margin-top:8px;">
-            <option value="R_10">Volatility 10</option>
-            <option value="R_25">Volatility 25</option>
-            <option value="R_50">Volatility 50</option>
-            <option value="R_75">Volatility 75</option>
-            <option value="R_100">Volatility 100</option>
-          </select>
-        </div>
-
-        <div class="card">
-          <small>LIVE</small>
-          <strong>Last digit: <span id="digitLive">—</span></strong>
-          <div id="digitStatsLive" class="muted" style="margin-top:6px;">Waiting for ticks...</div>
-        </div>
-
-        <div class="card">
-          <small>ANALYSIS</small>
-          <strong>Pick a digit</strong>
-          <input type="number" id="analysisDigit" placeholder="Digit 0-9" min="0" max="9" value="5" style="width:100%; margin-top:8px;">
-          <div id="analysisResult" class="muted" style="margin-top:8px;">Waiting for ticks...</div>
-        </div>
-
-        <div class="card">
-          <small>BOTS</small>
-          <strong>Choose a strategy</strong>
-          <div class="bot-grid" id="botGrid">
-            <div class="bot-tile" data-bot="over">Over</div>
-            <div class="bot-tile" data-bot="under">Under</div>
-            <div class="bot-tile" data-bot="match">Matches</div>
-            <div class="bot-tile" data-bot="diff">Differs</div>
-            <div class="bot-tile" data-bot="even">Even</div>
-            <div class="bot-tile" data-bot="odd">Odd</div>
+      <div class="card full">
+        <div class="signal">
+          <div>
+            <div class="label" style="margin-bottom:2px">Signal</div>
+            <div class="value mono" id="signal">WAIT</div>
           </div>
         </div>
-
-        <div class="card">
-          <small>BOT CONTROL</small>
-          <input type="number" id="botBarrier" placeholder="Digit 0-9 (Over/Under/Match/Differ only)" min="0" max="9" value="5" style="width:100%; margin-top:8px;">
-          <input type="number" id="stakeAmount" placeholder="Stake (USD)" value="1" min="0.35" step="0.01" style="width:100%; margin-top:8px;">
-          <input type="number" id="ticksDuration" placeholder="Ticks duration" value="5" min="1" max="10" style="width:100%; margin-top:8px;">
-          <input type="number" id="maxTrades" placeholder="Stop after N trades" value="10" min="1" style="width:100%; margin-top:8px;">
-          <button id="startBtn" class="button" style="margin-top:8px;">Start</button>
-          <button id="stopBtn" class="button" style="margin-top:8px; background:#333;">Stop</button>
-          <div id="tradeStatus" class="muted" style="margin-top:8px;">Stopped</div>
-        </div>
-
-        <div class="card">
-          <small>MANUAL TRADE</small>
-          <strong>One-off, your choice</strong>
-          <select id="manualContract" style="width:100%; margin-top:8px;">
-            <option value="DIGITOVER">Over</option>
-            <option value="DIGITUNDER">Under</option>
-            <option value="DIGITEVEN">Even</option>
-            <option value="DIGITODD">Odd</option>
-            <option value="DIGITMATCH">Matches</option>
-            <option value="DIGITDIFF">Differs</option>
-          </select>
-          <input type="number" id="manualBarrier" placeholder="Digit 0-9 (Over/Under/Match/Differ only)" min="0" max="9" style="width:100%; margin-top:8px;">
-          <button id="manualBuyBtn" class="button" style="margin-top:8px;">Place Manual Trade</button>
-        </div>
-
-        <div class="card">
-          <small>TRADE HISTORY (predicted vs actual)</small>
-          <div id="tradeHistory">No trades yet</div>
-        </div>
-
-      </section>
-    </div>
-
-    <section class="panel">
-      <h2>Trade Mate Features</h2>
-      <div class="checks">
-        <label>✓ Deriv account connection</label>
-        <label>✓ Synthetic indices</label>
-        <label>✓ Live tick stream</label>
-        <label>✓ Digit statistics</label>
-        <label>✓ Contract purchase</label>
-        <label>✓ Balance display</label>
-        <label>✓ Trade history</label>
-        <label>✓ Bot selection grid (choose type + digit)</label>
-        <label>✓ Dashboard/Bots tabs</label>
-        <label>✓ Manual trade (any contract, any digit)</label>
-        <label>✓ Digit percentage analysis</label>
-        <label>✓ Market selector on Bots tab</label>
-        <label>✓ Deposit / Withdraw / Demo top-up</label>
       </div>
-    </section>
 
-    <footer>
-      Trade Mate
-    </footer>
+      <div class="card">
+        <div class="label">Account</div>
+        <input type="password" id="patToken" placeholder="Paste your API token">
+        <select id="accountType">
+          <option value="demo">Demo</option>
+          <option value="real">Real</option>
+        </select>
+        <label class="check-row"><input type="checkbox" id="rememberToken" checked> Remember on this device</label>
+        <button id="authBtn" class="btn btn-secondary">Authenticate</button>
+        <div id="accountStatus" class="muted" style="margin-top:8px">Not authenticated</div>
+      </div>
 
-  </main>
+      <div class="card">
+        <div class="label">Balance</div>
+        <div class="value mono" id="balance">—</div>
+      </div>
 
-  <script src="app2.js"></script>
+      <div class="card full">
+        <div class="label">Wallet</div>
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr; margin-top:8px">
+          <button id="depositBtn" class="btn btn-secondary" style="margin-top:0">Deposit</button>
+          <button id="withdrawBtn" class="btn btn-secondary" style="margin-top:0">Withdraw</button>
+          <button id="topupBtn" class="btn btn-secondary" style="margin-top:0">Top Up Demo</button>
+        </div>
+        <div id="walletStatus" class="muted" style="margin-top:8px"></div>
+      </div>
 
+    </div>
+  </div>
+
+  <!-- ===================== BOTS TAB ===================== -->
+  <div class="tab-panel" id="tab-bots">
+    <div class="grid" style="margin-top:14px">
+
+      <div class="card">
+        <div class="label">Market</div>
+        <select id="marketBots">
+          <option value="R_10">Volatility 10</option>
+          <option value="R_25">Volatility 25</option>
+          <option value="R_50">Volatility 50</option>
+          <option value="R_75">Volatility 75</option>
+          <option value="R_100">Volatility 100</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <div class="label">Last Digit</div>
+        <div class="value mono" id="digitLive">—</div>
+      </div>
+
+      <div class="card full">
+        <div class="label">Live Stats</div>
+        <div id="digitStatsLive" class="muted mono">Waiting for ticks...</div>
+      </div>
+
+      <div class="card full">
+        <div class="label">Analysis — pick a digit</div>
+        <input type="number" id="analysisDigit" min="0" max="9" value="5">
+        <div id="analysisResult" class="muted" style="margin-top:8px">Waiting for ticks...</div>
+      </div>
+
+      <div class="card full">
+        <div class="label">Bots — choose a strategy</div>
+        <div class="bot-grid" id="botGrid">
+          <div class="bot-tile" data-bot="over">Over</div>
+          <div class="bot-tile" data-bot="under">Under</div>
+          <div class="bot-tile" data-bot="match">Matches</div>
+          <div class="bot-tile" data-bot="diff">Differs</div>
+          <div class="bot-tile" data-bot="even">Even</div>
+          <div class="bot-tile" data-bot="odd">Odd</div>
+        </div>
+      </div>
+
+      <div class="card full">
+        <div class="label">Bot Control</div>
+        <div class="grid" style="margin-top:0">
+          <input type="number" id="botBarrier" placeholder="Digit 0-9" min="0" max="9" value="5">
+          <input type="number" id="stakeAmount" placeholder="Stake (USD)" value="1" min="0.35" step="0.01">
+          <input type="number" id="ticksDuration" placeholder="Ticks" value="5" min="1" max="10">
+          <input type="number" id="maxTrades" placeholder="Stop after N" value="10" min="1">
+        </div>
+        <button id="startBtn" class="btn btn-primary">Start</button>
+        <button id="stopBtn" class="btn btn-secondary">Stop</button>
+        <div id="tradeStatus" class="muted" style="margin-top:8px">Stopped</div>
+      </div>
+
+      <div class="card full">
+        <div class="label">Manual Trade — one-off, your choice</div>
+        <select id="manualContract">
+          <option value="DIGITOVER">Over</option>
+          <option value="DIGITUNDER">Under</option>
+          <option value="DIGITEVEN">Even</option>
+          <option value="DIGITODD">Odd</option>
+          <option value="DIGITMATCH">Matches</option>
+          <option value="DIGITDIFF">Differs</option>
+        </select>
+        <input type="number" id="manualBarrier" placeholder="Digit 0-9" min="0" max="9">
+        <button id="manualBuyBtn" class="btn btn-secondary">Place Manual Trade</button>
+      </div>
+
+      <div class="card full">
+        <div class="label">Trade History</div>
+        <div id="tradeHistory" class="muted">No trades yet</div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<footer>Trade Mate</footer>
+
+<script src="app2.js"></script>
 </body>
-              </html>
+  </html>
