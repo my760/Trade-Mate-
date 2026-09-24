@@ -41,6 +41,10 @@ const tradeHistoryDisplay = document.getElementById("tradeHistory");
 const manualContract = document.getElementById("manualContract");
 const manualBarrier = document.getElementById("manualBarrier");
 const manualBuyBtn = document.getElementById("manualBuyBtn");
+const depositBtn = document.getElementById("depositBtn");
+const withdrawBtn = document.getElementById("withdrawBtn");
+const topupBtn = document.getElementById("topupBtn");
+const walletStatus = document.getElementById("walletStatus");
 
 let socket = null;
 let authSocket = null;
@@ -331,12 +335,26 @@ async function connectAuthSocket() {
 
       if (data.error) {
         tradeStatus.textContent = "Error: " + data.error.message;
+        if (walletStatus) walletStatus.textContent = "Error: " + data.error.message;
         awaitingSettlement = false;
         return;
       }
 
       if (data.msg_type === "balance" && data.balance) {
         balanceDisplay.textContent = data.balance.balance + " " + data.balance.currency;
+      }
+
+      if (data.msg_type === "cashier" && data.cashier) {
+        walletStatus.textContent = "Opening cashier...";
+        window.open(data.cashier, "_blank");
+      }
+
+      if (data.msg_type === "topup_virtual") {
+        if (data.topup_virtual && data.topup_virtual.amount) {
+          walletStatus.textContent = "Topped up: +" + data.topup_virtual.amount;
+        } else {
+          walletStatus.textContent = "Top-up not available right now";
+        }
       }
 
       if (data.msg_type === "buy" && data.buy) {
@@ -427,6 +445,26 @@ function renderTradeHistory() {
       (reason ? "<br><span class='muted'>" + reason + "</span>" : "") +
       "</div>";
   }).join("");
+}
+
+// ---------- Wallet ----------
+
+function requestCashier(action) {
+  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    walletStatus.textContent = "Authenticate first";
+    return;
+  }
+  walletStatus.textContent = "Opening " + action + " page...";
+  authSocket.send(JSON.stringify({ cashier: action }));
+}
+
+function topUpDemo() {
+  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    walletStatus.textContent = "Authenticate first";
+    return;
+  }
+  walletStatus.textContent = "Requesting top-up...";
+  authSocket.send(JSON.stringify({ topup_virtual: 1 }));
 }
 
 // ---------- Bot control (manual start/stop) ----------
@@ -615,6 +653,27 @@ if (manualBuyBtn) {
 
 if (analysisDigit) {
   analysisDigit.addEventListener("input", renderAnalysis);
+}
+
+if (depositBtn) {
+  depositBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    requestCashier("deposit");
+  });
+}
+
+if (withdrawBtn) {
+  withdrawBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    requestCashier("withdraw");
+  });
+}
+
+if (topupBtn) {
+  topupBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    topUpDemo();
+  });
 }
 
 setStatus("Not connected");
