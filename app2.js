@@ -1,4 +1,4 @@
-    window.onerror = function (msg) {
+window.onerror = function (msg) {
   document.getElementById("status").textContent = "JS Error: " + msg;
 };
 
@@ -28,6 +28,7 @@ const botGrid = document.getElementById("botGrid");
 const botBarrier = document.getElementById("botBarrier");
 
 const patToken = document.getElementById("patToken");
+const rememberToken = document.getElementById("rememberToken");
 const accountType = document.getElementById("accountType");
 const authBtn = document.getElementById("authBtn");
 const accountStatus = document.getElementById("accountStatus");
@@ -60,6 +61,25 @@ let lastPlacedContractId = null;
 let selectedBot = "over";
 let pendingTrade = null;
 const HISTORY_LENGTH = 500;
+
+// ---------- Remember token (this device only) ----------
+
+try {
+  const savedToken = localStorage.getItem("trademate_pat");
+  if (savedToken && patToken) {
+    patToken.value = savedToken;
+  }
+} catch (e) {
+  console.log("localStorage not available:", e);
+}
+
+if (rememberToken) {
+  rememberToken.addEventListener("change", function () {
+    if (!rememberToken.checked) {
+      try { localStorage.removeItem("trademate_pat"); } catch (e) {}
+    }
+  });
+}
 
 // ---------- Tab switching ----------
 
@@ -313,6 +333,10 @@ async function authenticate() {
     return;
   }
 
+  if (rememberToken && rememberToken.checked) {
+    try { localStorage.setItem("trademate_pat", token); } catch (e) {}
+  }
+
   accountStatus.textContent = "Fetching accounts...";
 
   try {
@@ -499,11 +523,10 @@ function renderTradeHistory() {
     const label = t.status === "open" ? "OPEN" : (t.status === "won" ? "WON" : "LOST");
     const profitText = t.profit !== null ? (t.profit >= 0 ? "+" : "") + t.profit.toFixed(2) : "—";
     const reason = t.status !== "open" ? outcomeExplanation(t) : "";
-    return "<div style='margin-bottom:6px; border-bottom:1px solid #333; padding-bottom:6px;'>" +
+    return "<div class='hist-row'><span>" +
       t.symbol + " " + t.contractType + (t.barrier !== null ? " (" + t.barrier + ")" : "") +
-      " | stake " + t.stake + " | <b>" + label + "</b> (" + profitText + ")" +
-      (reason ? "<br><span class='muted'>" + reason + "</span>" : "") +
-      "</div>";
+      " | $" + t.stake + "</span><span class='tag " + (t.status === "open" ? "open" : t.status === "won" ? "win" : "loss") + "'>" + label + " (" + profitText + ")</span></div>" +
+      (reason ? "<div class='muted' style='margin:-4px 0 6px'>" + reason + "</div>" : "");
   }).join("");
 }
 
@@ -615,125 +638,4 @@ function handleTradeSettled() {
 
   const limit = parseInt(maxTrades.value, 10);
   if (tradesPlacedCount >= limit) {
-    tradeStatus.textContent = "Stopped: reached " + limit + " trades";
-    stopBot();
-    return;
-  }
-
-  setTimeout(function () {
-    if (isAutoTrading) {
-      placeTrade();
-    }
-  }, 1500);
-}
-
-function startBot() {
-  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
-    tradeStatus.textContent = "Authenticate first";
-    return;
-  }
-  if (isAutoTrading) return;
-
-  isAutoTrading = true;
-  tradesPlacedCount = 0;
-  tradeStatus.textContent = "Starting...";
-  placeTrade();
-}
-
-function stopBot() {
-  isAutoTrading = false;
-  awaitingSettlement = false;
-  if (tradeStatus.textContent.indexOf("Stopped") === -1) {
-    tradeStatus.textContent = "Stopped";
-  }
-}
-
-// ---------- Event listeners ----------
-
-if (connect) {
-  connect.addEventListener("click", function (event) {
-    event.preventDefault();
-    connectDeriv();
-  });
-}
-
-if (marketSelect) {
-  marketSelect.addEventListener("change", function () {
-    if (marketBotsSelect) marketBotsSelect.value = marketSelect.value;
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      subscribeToTicks(marketSelect.value);
-    }
-  });
-}
-
-if (marketBotsSelect) {
-  marketBotsSelect.addEventListener("change", function () {
-    marketSelect.value = marketBotsSelect.value;
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      subscribeToTicks(marketSelect.value);
-    }
-  });
-}
-
-if (authBtn) {
-  authBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    authenticate();
-  });
-}
-
-if (accountType) {
-  accountType.addEventListener("change", function () {
-    if (Object.keys(accounts).length > 0) {
-      connectAuthSocket();
-    }
-  });
-}
-
-if (startBtn) {
-  startBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    startBot();
-  });
-}
-
-if (stopBtn) {
-  stopBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    stopBot();
-  });
-}
-
-if (manualBuyBtn) {
-  manualBuyBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    placeManualTrade();
-  });
-}
-
-if (analysisDigit) {
-  analysisDigit.addEventListener("input", renderAnalysis);
-}
-
-if (depositBtn) {
-  depositBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    requestCashier("deposit");
-  });
-}
-
-if (withdrawBtn) {
-  withdrawBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    requestCashier("withdraw");
-  });
-}
-
-if (topupBtn) {
-  topupBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    topUpDemo();
-  });
-}
-
-setStatus("Not connected");
+    tradeStatus.textContent = "
