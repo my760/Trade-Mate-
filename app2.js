@@ -26,6 +26,9 @@ const analysisDigit = document.getElementById("analysisDigit");
 const analysisResult = document.getElementById("analysisResult");
 const botGrid = document.getElementById("botGrid");
 const botBarrier = document.getElementById("botBarrier");
+const scanBtn = document.getElementById("scanBtn");
+const scanResult = document.getElementById("scanResult");
+const loadScanBtn = document.getElementById("loadScanBtn");
 
 const patToken = document.getElementById("patToken");
 const rememberToken = document.getElementById("rememberToken");
@@ -60,6 +63,10 @@ let awaitingSettlement = false;
 let lastPlacedContractId = null;
 let selectedBot = "over";
 let pendingTrade = null;
+let scanBestResult = null;
+let scanReqCounter = 1000;
+const scanPending = {};
+const ALL_SYMBOLS = ["R_10", "R_25", "R_50", "R_75", "R_100"];
 const HISTORY_LENGTH = 500;
 
 // ---------- Remember token (this device only) ----------
@@ -139,6 +146,15 @@ function connectDeriv() {
 
     if (data.error) {
       setStatus("API Error: " + data.error.message);
+      return;
+    }
+
+    if (data.req_id && scanPending[data.req_id]) {
+      const resolve = scanPending[data.req_id];
+      delete scanPending[data.req_id];
+      const digits = data.history ? data.history.prices.map(p => lastDigitOf(p)) : [];
+      resolve(digits);
+      return;
     }
 
     if (data.msg_type === "active_symbols") {
@@ -261,6 +277,38 @@ function renderAnalysis() {
     "<br><span style='opacity:0.6'>(based on last " + total + " ticks)</span>";
 }
 
+function findBestSignal(digits) {
+  const total = digits.length;
+  if (total === 0) return { type: null, barrier: null, label: "WAIT", pct: 0, deviation: 0 };
+
+  const counts = new Array(10).fill(0);
+  digits.forEach(d => counts[d]++);
+
+  let best = { type: null, barrier: null, label: "WAIT", pct: 0, deviation: 0 };
+
+  for (let d = 0; d <= 8; d++) {
+    const actual = digits.filter(x => x > d).length / total;
+    const dev = Math.abs(actual - (9 - d) / 10);
+    if (dev > best.deviation) best = { type: "over", barrier: d, label: "OVER " + d, pct: actual, deviation: dev };
+  }
+  for (let d = 1; d <= 9; d++) {
+    const actual = digits.filter(x => x < d).length / total;
+    const dev = Math.abs(actual - d / 10);
+    if (dev > best.deviation) best = { type: "under", barrier: d, label: "UNDER " + d, pct: actual, deviation: dev };
+  }
+  for (let d = 0; d <= 9; d++) {
+    const actual = counts[d] / total;
+    const dev = Math.abs(actual - 0.1);
+    if (dev > best.deviation) best = { type: "match", barrier: d, label: "MATCH " + d, pct: actual, deviation: dev };
+  }
+  const evenActual = digits.filter(d => d % 2 === 0).length / total;
+  if (Math.abs(evenActual - 0.5) > best.deviation) best = { type: "even", barrier: null, label: "EVEN", pct: evenActual, deviation: Math.abs(evenActual - 0.5) };
+  const oddActual = 1 - evenActual;
+  if (Math.abs(oddActual - 0.5) > best.deviation) best = { type: "odd", barrier: null, label: "ODD", pct: oddActual, deviation: Math.abs(oddActual - 0.5) };
+
+  return best;
+}
+
 function renderSignal() {
   if (!signalDisplay) return;
 
@@ -269,59 +317,80 @@ function renderSignal() {
     return;
   }
 
-  const total = digitHistory.length;
-  const counts = new Array(10).fill(0);
-  digitHistory.forEach(d => counts[d]++);
-
-  let best = { label: "WAIT", deviation: 0 };
-
-  for (let d = 0; d <= 8; d++) {
-    const overCount = digitHistory.filter(x => x > d).length;
-    const actual = overCount / total;
-    const fair = (9 - d) / 10;
-    const dev = Math.abs(actual - fair);
-    if (dev > best.deviation) {
-      best = { label: "OVER " + d + " (" + (actual * 100).toFixed(0) + "%)", deviation: dev };
-    }
-  }
-  for (let d = 1; d <= 9; d++) {
-    const underCount = digitHistory.filter(x => x < d).length;
-    const actual = underCount / total;
-    const fair = d / 10;
-    const dev = Math.abs(actual - fair);
-    if (dev > best.deviation) {
-      best = { label: "UNDER " + d + " (" + (actual * 100).toFixed(0) + "%)", deviation: dev };
-    }
-  }
-
-  for (let d = 0; d <= 9; d++) {
-    const actual = counts[d] / total;
-    const fair = 0.1;
-    const dev = Math.abs(actual - fair);
-    if (dev > best.deviation) {
-      best = { label: "MATCH " + d + " (" + (actual * 100).toFixed(0) + "%)", deviation: dev };
-    }
-  }
-
-  const evenCount = digitHistory.filter(d => d % 2 === 0).length;
-  const evenActual = evenCount / total;
-  const evenDev = Math.abs(evenActual - 0.5);
-  if (evenDev > best.deviation) {
-    best = { label: "EVEN (" + (evenActual * 100).toFixed(0) + "%)", deviation: evenDev };
-  }
-  const oddActual = 1 - evenActual;
-  const oddDev = Math.abs(oddActual - 0.5);
-  if (oddDev > best.deviation) {
-    best = { label: "ODD (" + (oddActual * 100).toFixed(0) + "%)", deviation: oddDev };
-  }
-
-  signalDisplay.textContent = best.deviation > 0.05 ? best.label : "WAIT";
+  const best = findBestSignal(digitHistory);
+  signalDisplay.textContent = best.deviation > 0.05 ? best.label + " (" + (best.pct * 100).toFixed(0) + "%)" : "WAIT";
 }
 
 function setStatus(message) {
   if (status) {
     status.textContent = message;
   }
+}
+
+// ---------- AI Market Scanner ----------
+
+function fetchHistoryFor(symbol) {
+  return new Promise((resolve) => {
+    const reqId = scanReqCounter++;
+    scanPending[reqId] = resolve;
+    socket.send(JSON.stringify({
+      ticks_history: symbol,
+      end: "latest",
+      count: HISTORY_LENGTH,
+      style: "ticks",
+      req_id: reqId
+    }));
+  });
+}
+
+async function scanMarkets() {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    scanResult.textContent = "Connect first";
+    return;
+  }
+
+  scanBtn.disabled = true;
+  loadScanBtn.style.display = "none";
+  scanResult.textContent = "Scanning...";
+
+  let overallBest = null;
+
+  for (const sym of ALL_SYMBOLS) {
+    scanResult.textContent = "Scanning " + sym + "...";
+    const digits = await fetchHistoryFor(sym);
+    const signal = findBestSignal(digits);
+    if (!overallBest || signal.deviation > overallBest.signal.deviation) {
+      overallBest = { symbol: sym, signal: signal };
+    }
+  }
+
+  scanBestResult = overallBest;
+  scanBtn.disabled = false;
+
+  if (overallBest && overallBest.signal.deviation > 0.05) {
+    scanResult.innerHTML = "Best: <b>" + overallBest.symbol + "</b> — " +
+      overallBest.signal.label + " (" + (overallBest.signal.pct * 100).toFixed(0) + "%)";
+    loadScanBtn.style.display = "block";
+  } else {
+    scanResult.textContent = "Nothing strong right now across any market";
+  }
+}
+
+function loadScanResult() {
+  if (!scanBestResult) return;
+
+  marketSelect.value = scanBestResult.symbol;
+  if (marketBotsSelect) marketBotsSelect.value = scanBestResult.symbol;
+  subscribeToTicks(scanBestResult.symbol);
+
+  selectBot(scanBestResult.signal.type);
+
+  if (scanBestResult.signal.barrier !== null && botBarrier) {
+    botBarrier.value = scanBestResult.signal.barrier;
+  }
+
+  const botsTab = document.querySelector('.tab-btn[data-tab="bots"]');
+  if (botsTab) botsTab.click();
 }
 
 // ---------- Authenticated account ----------
@@ -547,216 +616,4 @@ function topUpDemo() {
     return;
   }
   walletStatus.textContent = "Requesting top-up...";
-  authSocket.send(JSON.stringify({ topup_virtual: 1 }));
-}
-
-// ---------- Bot control (manual start/stop) ----------
-
-function placeTrade() {
-  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
-    tradeStatus.textContent = "Not authenticated yet";
-    stopBot();
-    return;
-  }
-
-  const preset = BOT_PRESETS[selectedBot];
-  const symbol = marketSelect.value;
-  const stake = parseFloat(stakeAmount.value);
-  const ticks = parseInt(ticksDuration.value, 10);
-  const barrier = preset.needsBarrier ? botBarrier.value : null;
-
-  const parameters = {
-    amount: stake,
-    basis: "stake",
-    contract_type: preset.contract_type,
-    currency: "USD",
-    duration: ticks,
-    duration_unit: "t",
-    underlying_symbol: symbol
-  };
-
-  if (barrier !== null) {
-    parameters.barrier = barrier;
-  }
-
-  pendingTrade = { contract_type: preset.contract_type, barrier: barrier };
-
-  const request = {
-    buy: "1",
-    price: stake.toString(),
-    parameters: parameters
-  };
-
-  tradeStatus.textContent = "Trade " + (tradesPlacedCount + 1) + " of " + maxTrades.value + " (" + preset.label + (barrier !== null ? " " + barrier : "") + ")";
-  awaitingSettlement = true;
-  authSocket.send(JSON.stringify(request));
-}
-
-function placeManualTrade() {
-  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
-    tradeStatus.textContent = "Authenticate first";
-    return;
-  }
-
-  const contractType = manualContract.value;
-  const symbol = marketSelect.value;
-  const stake = parseFloat(stakeAmount.value);
-  const ticks = parseInt(ticksDuration.value, 10);
-  const needsBarrier = ["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(contractType);
-  const barrier = needsBarrier ? manualBarrier.value : null;
-
-  const parameters = {
-    amount: stake,
-    basis: "stake",
-    contract_type: contractType,
-    currency: "USD",
-    duration: ticks,
-    duration_unit: "t",
-    underlying_symbol: symbol
-  };
-
-  if (needsBarrier) {
-    parameters.barrier = barrier;
-  }
-
-  pendingTrade = { contract_type: contractType, barrier: barrier };
-
-  const request = {
-    buy: "1",
-    price: stake.toString(),
-    parameters: parameters
-  };
-
-  tradeStatus.textContent = "Manual trade placed (" + contractType + ")";
-  authSocket.send(JSON.stringify(request));
-}
-
-function handleTradeSettled() {
-  tradesPlacedCount++;
-
-  if (!isAutoTrading) return;
-
-  const limit = parseInt(maxTrades.value, 10);
-  if (tradesPlacedCount >= limit) {
-    tradeStatus.textContent = "Stopped: reached " + limit + " trades";
-    stopBot();
-    return;
-  }
-
-  setTimeout(function () {
-    if (isAutoTrading) {
-      placeTrade();
-    }
-  }, 1500);
-}
-
-function startBot() {
-  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
-    tradeStatus.textContent = "Authenticate first";
-    return;
-  }
-  if (isAutoTrading) return;
-
-  isAutoTrading = true;
-  tradesPlacedCount = 0;
-  tradeStatus.textContent = "Starting...";
-  placeTrade();
-}
-
-function stopBot() {
-  isAutoTrading = false;
-  awaitingSettlement = false;
-  if (tradeStatus.textContent.indexOf("Stopped") === -1) {
-    tradeStatus.textContent = "Stopped";
-  }
-}
-
-// ---------- Event listeners ----------
-
-if (connect) {
-  connect.addEventListener("click", function (event) {
-    event.preventDefault();
-    connectDeriv();
-  });
-}
-
-if (marketSelect) {
-  marketSelect.addEventListener("change", function () {
-    if (marketBotsSelect) marketBotsSelect.value = marketSelect.value;
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      subscribeToTicks(marketSelect.value);
-    }
-  });
-}
-
-if (marketBotsSelect) {
-  marketBotsSelect.addEventListener("change", function () {
-    marketSelect.value = marketBotsSelect.value;
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      subscribeToTicks(marketSelect.value);
-    }
-  });
-}
-
-if (authBtn) {
-  authBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    authenticate();
-  });
-}
-
-if (accountType) {
-  accountType.addEventListener("change", function () {
-    if (Object.keys(accounts).length > 0) {
-      connectAuthSocket();
-    }
-  });
-}
-
-if (startBtn) {
-  startBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    startBot();
-  });
-}
-
-if (stopBtn) {
-  stopBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    stopBot();
-  });
-}
-
-if (manualBuyBtn) {
-  manualBuyBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    placeManualTrade();
-  });
-}
-
-if (analysisDigit) {
-  analysisDigit.addEventListener("input", renderAnalysis);
-}
-
-if (depositBtn) {
-  depositBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    requestCashier("deposit");
-  });
-}
-
-if (withdrawBtn) {
-  withdrawBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    requestCashier("withdraw");
-  });
-}
-
-if (topupBtn) {
-  topupBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    topUpDemo();
-  });
-}
-
-setStatus("Not connected");
+  authS
