@@ -616,4 +616,158 @@ function topUpDemo() {
     return;
   }
   walletStatus.textContent = "Requesting top-up...";
-  authS
+  ocket.send(JSON.stringify({ topup_virtual: 1 }));
+}
+
+// ---------- Bot control (manual start/stop) ----------
+
+function placeTrade() {
+  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    tradeStatus.textContent = "Not authenticated yet";
+    stopBot();
+    return;
+  }
+
+  const preset = BOT_PRESETS[selectedBot];
+  const symbol = marketSelect.value;
+  const stake = parseFloat(stakeAmount.value);
+  const ticks = parseInt(ticksDuration.value, 10);
+  const barrier = preset.needsBarrier ? botBarrier.value : null;
+
+  const parameters = {
+    amount: stake,
+    basis: "stake",
+    contract_type: preset.contract_type,
+    currency: "USD",
+    duration: ticks,
+    duration_unit: "t",
+    underlying_symbol: symbol
+  };
+
+  if (barrier !== null) {
+    parameters.barrier = barrier;
+  }
+
+  pendingTrade = { contract_type: preset.contract_type, barrier: barrier };
+
+  const request = {
+    buy: "1",
+    price: stake.toString(),
+    parameters: parameters
+  };
+
+  tradeStatus.textContent = "Trade " + (tradesPlacedCount + 1) + " of " + maxTrades.value + " (" + preset.label + (barrier !== null ? " " + barrier : "") + ")";
+  awaitingSettlement = true;
+  authSocket.send(JSON.stringify(request));
+}
+
+function placeManualTrade() {
+  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    tradeStatus.textContent = "Authenticate first";
+    return;
+  }
+
+  const contractType = manualContract.value;
+  const symbol = marketSelect.value;
+  const stake = parseFloat(stakeAmount.value);
+  const ticks = parseInt(ticksDuration.value, 10);
+  const needsBarrier = ["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(contractType);
+  const barrier = needsBarrier ? manualBarrier.value : null;
+
+  const parameters = {
+    amount: stake,
+    basis: "stake",
+    contract_type: contractType,
+    currency: "USD",
+    duration: ticks,
+    duration_unit: "t",
+    underlying_symbol: symbol
+  };
+
+  if (needsBarrier) {
+    parameters.barrier = barrier;
+  }
+
+  pendingTrade = { contract_type: contractType, barrier: barrier };
+
+  const request = {
+    buy: "1",
+    price: stake.toString(),
+    parameters: parameters
+  };
+
+  tradeStatus.textContent = "Manual trade placed (" + contractType + ")";
+  authSocket.send(JSON.stringify(request));
+}
+
+function handleTradeSettled() {
+  tradesPlacedCount++;
+
+  if (!isAutoTrading) return;
+
+  const limit = parseInt(maxTrades.value, 10);
+  if (tradesPlacedCount >= limit) {
+    tradeStatus.textContent = "Stopped: reached " + limit + " trades";
+    stopBot();
+    return;
+  }
+
+  setTimeout(function () {
+    if (isAutoTrading) {
+      placeTrade();
+    }
+  }, 1500);
+}
+
+function startBot() {
+  if (!authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    tradeStatus.textContent = "Authenticate first";
+    return;
+  }
+  if (isAutoTrading) return;
+
+  isAutoTrading = true;
+  tradesPlacedCount = 0;
+  tradeStatus.textContent = "Starting...";
+  placeTrade();
+}
+
+function stopBot() {
+  isAutoTrading = false;
+  awaitingSettlement = false;
+  if (tradeStatus.textContent.indexOf("Stopped") === -1) {
+    tradeStatus.textContent = "Stopped";
+  }
+}
+
+// ---------- Event listeners ----------
+
+if (connect) {
+  connect.addEventListener("click", function (event) {
+    event.preventDefault();
+    connectDeriv();
+  });
+}
+
+if (marketSelect) {
+  marketSelect.addEventListener("change", function () {
+    if (marketBotsSelect) marketBotsSelect.value = marketSelect.value;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      subscribeToTicks(marketSelect.value);
+    }
+  });
+}
+
+if (marketBotsSelect) {
+  marketBotsSelect.addEventListener("change", function () {
+    marketSelect.value = marketBotsSelect.value;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      subscribeToTicks(marketSelect.value);
+    }
+  });
+}
+
+if (authBtn) {
+  authBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    authenti
