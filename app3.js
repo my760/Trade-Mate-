@@ -440,3 +440,4 @@ if (loadScanBtn) {
 }
 
 setStatus("Not connected");
+connectDeriv();
