@@ -445,10 +445,17 @@ footer { text-align: center; padding: 16px; color: var(--muted); font-size: 11px
         </div>
       </div>
 
-      <div class="action-row">
-        <button class="btn btn-teal" id="btnEven">Even</button>
-        <button class="btn btn-red" id="btnOdd">Odd</button>
+      <div id="analysisBarrierRow" style="margin-bottom:10px; display:none">
+        <span class="field-label">Digit (barrier)</span>
+        <input type="number" id="analysisBarrier" min="0" max="9" value="5">
       </div>
+
+      <div class="action-row" id="analysisActions">
+        <button class="btn btn-teal" id="btnSideA">Even</button>
+        <button class="btn btn-red" id="btnSideB">Odd</button>
+      </div>
+
+      <div id="analysisHint" class="muted" style="margin-top:8px; font-size:12px"></div>
 
       <div class="status-bar">
         <div class="status-dot" id="botStatusDot"></div>
@@ -534,130 +541,4 @@ footer { text-align: center; padding: 16px; color: var(--muted); font-size: 11px
         <option value="DIGITDIFF">Differs</option>
       </select>
       <input type="number" id="manualBarrier" placeholder="Digit 0-9" min="0" max="9" style="margin-top:8px">
-      <button id="manualBuyBtn" class="btn btn-blue">Place Manual Trade</button>
-    </div>
-
-    <div class="card">
-      <div class="label">Trade History</div>
-      <div id="tradeHistory" class="muted">No trades yet</div>
-    </div>
-  </div>
-
-  <!-- ===================== SCANNER ===================== -->
-  <div class="tab-panel" id="tab-scanner">
-    <div class="card grad">
-      <div class="label">AI Market Scanner</div>
-      <p class="muted" style="margin-bottom:12px; font-size:13px">Scan all markets and get the single best opportunity.</p>
-
-      <div style="margin-bottom:10px">
-        <span class="field-label">Scan Type</span>
-        <select id="scanType">
-          <option value="evenodd">Even / Odd</option>
-          <option value="overunder">Over / Under</option>
-          <option value="matchdiff">Match / Differ</option>
-        </select>
-      </div>
-
-      <div style="margin-bottom:10px">
-        <span class="field-label">Ticks to analyse</span>
-        <input type="number" id="scanTicks" value="500" min="100" max="2000">
-      </div>
-
-      <button id="scanBtn" class="btn btn-blue">▶ Start Scanning</button>
-
-      <div id="scanResult" class="scan-result-box" style="display:none">
-        <div class="best-label">Best Market</div>
-        <div class="best-market" id="scanBestMarket">—</div>
-        <div class="best-side even" id="scanBestSide">—</div>
-        <div class="best-pct" id="scanBestPct">—</div>
-      </div>
-
-      <div id="scanResultOld" class="muted" style="margin-top:10px">Not scanned yet</div>
-      <button id="loadScanBtn" class="btn btn-teal" style="display:none; margin-top:10px">Load & Run This</button>
-    </div>
-  </div>
-
-</main>
-
-<!-- Floating AI button -->
-<div class="ai-fab" title="AI Assistant">AI</div>
-
-<!-- Bottom bar -->
-<div class="bottom-bar">
-  <button class="run-btn" id="bottomRunBtn">▶ Run</button>
-  <div class="speed-control">
-    NORMAL SPEED
-    <div class="speed-dot"></div>
-  </div>
-</div>
-
-<footer>Trade Mate</footer>
-
-<script src="app2.js"></script>
-<script src="app3.js"></script>
-<script>
-/* ===== Extra UI logic for new design ===== */
-document.querySelectorAll(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", function () {
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
-    btn.classList.add("active");
-    const panel = document.getElementById("tab-" + btn.dataset.tab);
-    if (panel) panel.classList.add("active");
-  });
-});
-
-/* AI button opens Scanner tab */
-document.querySelector(".ai-fab")?.addEventListener("click", function () {
-  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
-  document.querySelector('[data-tab="scanner"]')?.classList.add("active");
-  document.getElementById("tab-scanner")?.classList.add("active");
-});
-
-/* Update digit circles from stats */
-function updateDigitCircles(counts, total, lastDigit) {
-  if (!total || total < 1) return;
-  for (let d = 0; d <= 9; d++) {
-    const pct = ((counts[d] || 0) / total * 100).toFixed(1);
-    const el = document.getElementById("pct" + d);
-    if (el) el.textContent = pct + "%";
-    const item = document.querySelector('.digit-item[data-d="' + d + '"]');
-    if (item) {
-      const circle = item.querySelector(".digit-circle");
-      circle.classList.toggle("active", d === lastDigit);
-      item.classList.toggle("hot", d === lastDigit);
-    }
-  }
-}
-
-/* Simple sequence display */
-function updateDigitSeq(history) {
-  const seq = document.getElementById("digitSeq");
-  if (!seq || !history || !history.length) return;
-  const last = history.slice(-8);
-  seq.innerHTML = last.map(d => {
-    const isEven = d % 2 === 0;
-    return '<div class="seq-box ' + (isEven ? "even" : "odd") + '">' + (isEven ? "E" : "O") + "</div>";
-  }).join("");
-}
-
-/* Scanner result display helper */
-function showScanResult(marketName, side, pct) {
-  const box = document.getElementById("scanResult");
-  const old = document.getElementById("scanResultOld");
-  if (box) {
-    box.style.display = "block";
-    document.getElementById("scanBestMarket").textContent = marketName;
-    const sideEl = document.getElementById("scanBestSide");
-    sideEl.textContent = side;
-    sideEl.className = "best-side " + (side.toLowerCase() === "even" || side.toLowerCase() === "over" || side.toLowerCase() === "match" ? "even" : "odd");
-    document.getElementById("scanBestPct").textContent = "Probability: " + pct + "%";
-  }
-  if (old) old.style.display = "none";
-  const loadBtn = document.getElementById("loadScanBtn");
-  if (loadBtn) loadBtn.style.display = "block";
-}
-</script>
-</body>
-</html>
+      <button id="manualBuyBtn" class="btn btn-blue">Place Manual 
