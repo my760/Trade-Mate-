@@ -204,8 +204,12 @@ function lastDigitOf(price) {
 
 function updateDigit(quote) {
   const lastDigit = lastDigitOf(quote);
-  digitDisplay.textContent = lastDigit;
+  if (digitDisplay) digitDisplay.textContent = lastDigit;
   if (digitLive) digitLive.textContent = lastDigit;
+
+  // New Analysis UI – current tick price
+  const tickPriceEl = document.getElementById("currentTickPrice");
+  if (tickPriceEl) tickPriceEl.textContent = quote;
 
   digitHistory.push(lastDigit);
   if (digitHistory.length > HISTORY_LENGTH) {
@@ -215,10 +219,8 @@ function updateDigit(quote) {
 }
 
 function renderDigitStats() {
-  if (!digitStatsDisplay) return;
-
   if (digitHistory.length === 0) {
-    digitStatsDisplay.textContent = "Waiting for ticks...";
+    if (digitStatsDisplay) digitStatsDisplay.textContent = "Waiting for ticks...";
     if (digitStatsLive) digitStatsLive.textContent = "Waiting for ticks...";
     renderAnalysis();
     renderSignal();
@@ -232,8 +234,17 @@ function renderDigitStats() {
     .map((c, digit) => digit + ":" + c)
     .join("  ");
 
-  digitStatsDisplay.textContent = "(" + digitHistory.length + " ticks) " + line;
+  if (digitStatsDisplay) digitStatsDisplay.textContent = "(" + digitHistory.length + " ticks) " + line;
   if (digitStatsLive) digitStatsLive.textContent = "(" + digitHistory.length + " ticks) " + line;
+
+  // Update new Analysis digit circles + sequence
+  const lastDigit = digitHistory[digitHistory.length - 1];
+  if (typeof updateDigitCircles === "function") {
+    updateDigitCircles(counts, digitHistory.length, lastDigit);
+  }
+  if (typeof updateDigitSeq === "function") {
+    updateDigitSeq(digitHistory);
+  }
 
   renderAnalysis();
   renderSignal();
@@ -275,7 +286,7 @@ function renderAnalysis() {
     "<br><span style='opacity:0.6'>(based on last " + total + " ticks)</span>";
 }
 
-function findBestSignal(digits) {
+function findBestSignal(digits, scanType) {
   const total = digits.length;
   if (total === 0) return { type: null, barrier: null, label: "WAIT", pct: 0, deviation: 0 };
 
@@ -283,7 +294,49 @@ function findBestSignal(digits) {
   digits.forEach(d => counts[d]++);
 
   let best = { type: null, barrier: null, label: "WAIT", pct: 0, deviation: 0 };
+  const type = (scanType || "all").toLowerCase();
 
+  // Even / Odd only
+  if (type === "evenodd" || type === "even" || type === "odd") {
+    const evenActual = digits.filter(d => d % 2 === 0).length / total;
+    const oddActual = 1 - evenActual;
+    if (evenActual >= oddActual) {
+      best = { type: "even", barrier: null, label: "EVEN", pct: evenActual, deviation: Math.abs(evenActual - 0.5) };
+    } else {
+      best = { type: "odd", barrier: null, label: "ODD", pct: oddActual, deviation: Math.abs(oddActual - 0.5) };
+    }
+    return best;
+  }
+
+  // Over / Under only
+  if (type === "overunder" || type === "over" || type === "under") {
+    for (let d = 0; d <= 8; d++) {
+      const actual = digits.filter(x => x > d).length / total;
+      const expected = (9 - d) / 10;
+      const dev = Math.abs(actual - expected);
+      if (dev > best.deviation) best = { type: "over", barrier: d, label: "OVER " + d, pct: actual, deviation: dev };
+    }
+    for (let d = 1; d <= 9; d++) {
+      const actual = digits.filter(x => x < d).length / total;
+      const expected = d / 10;
+      const dev = Math.abs(actual - expected);
+      if (dev > best.deviation) best = { type: "under", barrier: d, label: "UNDER " + d, pct: actual, deviation: dev };
+    }
+    return best;
+  }
+
+  // Match / Differ only
+  if (type === "matchdiff" || type === "match" || type === "diff") {
+    for (let d = 0; d <= 9; d++) {
+      const actual = counts[d] / total;
+      const dev = Math.abs(actual - 0.1);
+      if (dev > best.deviation) best = { type: "match", barrier: d, label: "MATCH " + d, pct: actual, deviation: dev };
+    }
+    // Differ = opposite of strongest match bias isn't needed; pick strongest match deviation
+    return best;
+  }
+
+  // Default: check everything (old behaviour)
   for (let d = 0; d <= 8; d++) {
     const actual = digits.filter(x => x > d).length / total;
     const dev = Math.abs(actual - (9 - d) / 10);
@@ -366,11 +419,14 @@ async function scanMarkets() {
     R_100: "Volatility 100 (1s)"
   };
 
+  const scanTypeEl = document.getElementById("scanType");
+  const selectedType = scanTypeEl ? scanTypeEl.value : "evenodd";
+
   try {
     for (const sym of ALL_SYMBOLS) {
       if (oldMsg) oldMsg.textContent = "Scanning " + (names[sym] || sym) + "...";
       const digits = await fetchHistoryFor(sym);
-      const signal = findBestSignal(digits);
+      const signal = findBestSignal(digits, selectedType);
       if (!overallBest || signal.deviation > overallBest.signal.deviation) {
         overallBest = { symbol: sym, signal: signal };
       }
@@ -384,7 +440,7 @@ async function scanMarkets() {
   scanBestResult = overallBest;
   scanBtn.disabled = false;
 
-  if (overallBest && overallBest.signal.deviation > 0.05) {
+  if (overallBest && overallBest.signal.type) {
     const marketName = names[overallBest.symbol] || overallBest.symbol;
     const side = overallBest.signal.label || overallBest.signal.type || "—";
     const pct = (overallBest.signal.pct * 100).toFixed(1);
@@ -418,5 +474,5 @@ function loadScanResult() {
 
   const botsTab = document.querySelector('.tab-btn[data-tab="bots"]');
   if (botsTab) botsTab.click();
-}
-      
+  }
+  
