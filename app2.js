@@ -510,5 +510,5 @@ function loadScanResult() {
 
   const botsTab = document.querySelector('.tab-btn[data-tab="bots"]');
   if (botsTab) botsTab.click();
-  }
-  
+         }
+                                        
