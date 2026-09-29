@@ -114,6 +114,10 @@ if (botGrid) {
 function connectDeriv() {
   setStatus("Connecting...");
 
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+    try { socket.close(); } catch (e) {}
+  }
+
   socket = new WebSocket(
     "wss://api.derivws.com/trading/v1/options/ws/public"
   );
@@ -121,15 +125,17 @@ function connectDeriv() {
   socket.onopen = function () {
     setStatus("Connected");
     loadSymbols();
-    subscribeToTicks(marketSelect.value);
+    if (marketSelect) subscribeToTicks(marketSelect.value);
   };
 
   socket.onerror = function () {
-    setStatus("WebSocket error");
+    setStatus("WebSocket error — try Connect Deriv again");
   };
 
   socket.onclose = function (event) {
-    setStatus("Disconnected (code: " + event.code + ", reason: " + event.reason + ")");
+    const reason = event.reason || "connection closed";
+    setStatus("Disconnected (code: " + event.code + ") — click Connect Deriv");
+    console.warn("WS closed", event.code, reason);
   };
 
   socket.onmessage = function (event) {
@@ -334,35 +340,66 @@ function fetchHistoryFor(symbol) {
 }
 
 async function scanMarkets() {
+  const oldMsg = document.getElementById("scanResultOld");
+  const resultBox = document.getElementById("scanResult");
+
   if (!socket || socket.readyState !== WebSocket.OPEN) {
-    scanResult.textContent = "Connect first";
+    if (oldMsg) oldMsg.textContent = "Connect first (click Connect Deriv and wait for Connected)";
+    if (resultBox) resultBox.style.display = "none";
     return;
   }
 
   scanBtn.disabled = true;
-  loadScanBtn.style.display = "none";
-  scanResult.textContent = "Scanning...";
+  if (loadScanBtn) loadScanBtn.style.display = "none";
+  if (resultBox) resultBox.style.display = "none";
+  if (oldMsg) {
+    oldMsg.style.display = "block";
+    oldMsg.textContent = "Scanning...";
+  }
 
   let overallBest = null;
+  const names = {
+    R_10: "Volatility 10 (1s)",
+    R_25: "Volatility 25 (1s)",
+    R_50: "Volatility 50 (1s)",
+    R_75: "Volatility 75 (1s)",
+    R_100: "Volatility 100 (1s)"
+  };
 
-  for (const sym of ALL_SYMBOLS) {
-    scanResult.textContent = "Scanning " + sym + "...";
-    const digits = await fetchHistoryFor(sym);
-    const signal = findBestSignal(digits);
-    if (!overallBest || signal.deviation > overallBest.signal.deviation) {
-      overallBest = { symbol: sym, signal: signal };
+  try {
+    for (const sym of ALL_SYMBOLS) {
+      if (oldMsg) oldMsg.textContent = "Scanning " + (names[sym] || sym) + "...";
+      const digits = await fetchHistoryFor(sym);
+      const signal = findBestSignal(digits);
+      if (!overallBest || signal.deviation > overallBest.signal.deviation) {
+        overallBest = { symbol: sym, signal: signal };
+      }
     }
+  } catch (err) {
+    if (oldMsg) oldMsg.textContent = "Scan failed: " + (err.message || "connection lost");
+    scanBtn.disabled = false;
+    return;
   }
 
   scanBestResult = overallBest;
   scanBtn.disabled = false;
 
   if (overallBest && overallBest.signal.deviation > 0.05) {
-    scanResult.innerHTML = "Best: <b>" + overallBest.symbol + "</b> — " +
-      overallBest.signal.label + " (" + (overallBest.signal.pct * 100).toFixed(0) + "%)";
-    loadScanBtn.style.display = "block";
+    const marketName = names[overallBest.symbol] || overallBest.symbol;
+    const side = overallBest.signal.label || overallBest.signal.type || "—";
+    const pct = (overallBest.signal.pct * 100).toFixed(1);
+    if (typeof showScanResult === "function") {
+      showScanResult(marketName, side, pct);
+    } else if (oldMsg) {
+      oldMsg.textContent = "Best: " + marketName + " — " + side + " (" + pct + "%)";
+    }
+    if (loadScanBtn) loadScanBtn.style.display = "block";
   } else {
-    scanResult.textContent = "Nothing strong right now across any market";
+    if (oldMsg) {
+      oldMsg.style.display = "block";
+      oldMsg.textContent = "Nothing strong right now across any market";
+    }
+    if (resultBox) resultBox.style.display = "none";
   }
 }
 
@@ -381,4 +418,4 @@ function loadScanResult() {
 
   const botsTab = document.querySelector('.tab-btn[data-tab="bots"]');
   if (botsTab) botsTab.click();
-  }
+          }
