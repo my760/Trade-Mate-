@@ -150,8 +150,10 @@ function connectDeriv() {
     if (data.req_id && scanPending[data.req_id]) {
       const resolve = scanPending[data.req_id];
       delete scanPending[data.req_id];
-      const digits = data.history ? data.history.prices.map(p => lastDigitOf(p)) : [];
-      resolve(digits);
+      const digits = data.history && data.history.prices
+        ? data.history.prices.map(p => lastDigitOf(p))
+        : [];
+      if (typeof resolve === "function") resolve(digits);
       return;
     }
 
@@ -288,76 +290,70 @@ function renderAnalysis() {
 
 function findBestSignal(digits, scanType) {
   const total = digits.length;
-  if (total === 0) return { type: null, barrier: null, label: "WAIT", pct: 0, deviation: 0 };
+  if (total < 30) return { type: null, barrier: null, label: "WAIT", pct: 0, deviation: 0, ticks: total };
 
   const counts = new Array(10).fill(0);
-  digits.forEach(d => counts[d]++);
+  digits.forEach(d => { if (d >= 0 && d <= 9) counts[d]++; });
 
-  let best = { type: null, barrier: null, label: "WAIT", pct: 0, deviation: 0 };
+  let best = { type: null, barrier: null, label: "WAIT", pct: 0, deviation: 0, ticks: total };
   const type = (scanType || "all").toLowerCase();
 
-  // Even / Odd only
+  // Even / Odd only — pick side with higher share
   if (type === "evenodd" || type === "even" || type === "odd") {
-    const evenActual = digits.filter(d => d % 2 === 0).length / total;
-    const oddActual = 1 - evenActual;
-    if (evenActual >= oddActual) {
-      best = { type: "even", barrier: null, label: "EVEN", pct: evenActual, deviation: Math.abs(evenActual - 0.5) };
+    const evenCount = digits.filter(d => d % 2 === 0).length;
+    const oddCount = total - evenCount;
+    const evenPct = evenCount / total;
+    const oddPct = oddCount / total;
+    if (evenPct >= oddPct) {
+      best = { type: "even", barrier: null, label: "EVEN", pct: evenPct, deviation: Math.abs(evenPct - 0.5), ticks: total };
     } else {
-      best = { type: "odd", barrier: null, label: "ODD", pct: oddActual, deviation: Math.abs(oddActual - 0.5) };
+      best = { type: "odd", barrier: null, label: "ODD", pct: oddPct, deviation: Math.abs(oddPct - 0.5), ticks: total };
     }
     return best;
   }
 
-  // Over / Under only
+  // Over / Under — pick strongest bias vs fair odds
   if (type === "overunder" || type === "over" || type === "under") {
     for (let d = 0; d <= 8; d++) {
       const actual = digits.filter(x => x > d).length / total;
       const expected = (9 - d) / 10;
-      const dev = Math.abs(actual - expected);
-      if (dev > best.deviation) best = { type: "over", barrier: d, label: "OVER " + d, pct: actual, deviation: dev };
+      const dev = actual - expected; // positive = over is hot
+      if (dev > best.deviation) best = { type: "over", barrier: d, label: "OVER " + d, pct: actual, deviation: dev, ticks: total };
     }
     for (let d = 1; d <= 9; d++) {
       const actual = digits.filter(x => x < d).length / total;
       const expected = d / 10;
-      const dev = Math.abs(actual - expected);
-      if (dev > best.deviation) best = { type: "under", barrier: d, label: "UNDER " + d, pct: actual, deviation: dev };
+      const dev = actual - expected; // positive = under is hot
+      if (dev > best.deviation) best = { type: "under", barrier: d, label: "UNDER " + d, pct: actual, deviation: dev, ticks: total };
     }
     return best;
   }
 
-  // Match / Differ only
+  // Match / Differ — strongest digit frequency OR strongest differ
   if (type === "matchdiff" || type === "match" || type === "diff") {
     for (let d = 0; d <= 9; d++) {
-      const actual = counts[d] / total;
-      const dev = Math.abs(actual - 0.1);
-      if (dev > best.deviation) best = { type: "match", barrier: d, label: "MATCH " + d, pct: actual, deviation: dev };
+      const matchPct = counts[d] / total;
+      const differPct = 1 - matchPct;
+      // Prefer match if clearly above 10%, else differ if strong
+      const matchDev = matchPct - 0.1;
+      const differDev = differPct - 0.9;
+      if (matchDev > best.deviation) {
+        best = { type: "match", barrier: d, label: "MATCH " + d, pct: matchPct, deviation: matchDev, ticks: total };
+      }
+      if (differDev > best.deviation) {
+        best = { type: "diff", barrier: d, label: "DIFFERS " + d, pct: differPct, deviation: differDev, ticks: total };
+      }
     }
-    // Differ = opposite of strongest match bias isn't needed; pick strongest match deviation
     return best;
   }
 
-  // Default: check everything (old behaviour)
-  for (let d = 0; d <= 8; d++) {
-    const actual = digits.filter(x => x > d).length / total;
-    const dev = Math.abs(actual - (9 - d) / 10);
-    if (dev > best.deviation) best = { type: "over", barrier: d, label: "OVER " + d, pct: actual, deviation: dev };
+  // Fallback: even/odd
+  const evenPct = digits.filter(d => d % 2 === 0).length / total;
+  const oddPct = 1 - evenPct;
+  if (evenPct >= oddPct) {
+    return { type: "even", barrier: null, label: "EVEN", pct: evenPct, deviation: Math.abs(evenPct - 0.5), ticks: total };
   }
-  for (let d = 1; d <= 9; d++) {
-    const actual = digits.filter(x => x < d).length / total;
-    const dev = Math.abs(actual - d / 10);
-    if (dev > best.deviation) best = { type: "under", barrier: d, label: "UNDER " + d, pct: actual, deviation: dev };
-  }
-  for (let d = 0; d <= 9; d++) {
-    const actual = counts[d] / total;
-    const dev = Math.abs(actual - 0.1);
-    if (dev > best.deviation) best = { type: "match", barrier: d, label: "MATCH " + d, pct: actual, deviation: dev };
-  }
-  const evenActual = digits.filter(d => d % 2 === 0).length / total;
-  if (Math.abs(evenActual - 0.5) > best.deviation) best = { type: "even", barrier: null, label: "EVEN", pct: evenActual, deviation: Math.abs(evenActual - 0.5) };
-  const oddActual = 1 - evenActual;
-  if (Math.abs(oddActual - 0.5) > best.deviation) best = { type: "odd", barrier: null, label: "ODD", pct: oddActual, deviation: Math.abs(oddActual - 0.5) };
-
-  return best;
+  return { type: "odd", barrier: null, label: "ODD", pct: oddPct, deviation: Math.abs(oddPct - 0.5), ticks: total };
 }
 
 function renderSignal() {
@@ -378,17 +374,32 @@ function setStatus(message) {
   }
 }
 
-function fetchHistoryFor(symbol) {
+function fetchHistoryFor(symbol, count) {
   return new Promise((resolve) => {
     const reqId = scanReqCounter++;
-    scanPending[reqId] = resolve;
-    socket.send(JSON.stringify({
-      ticks_history: symbol,
-      end: "latest",
-      count: HISTORY_LENGTH,
-      style: "ticks",
-      req_id: reqId
-    }));
+    const timeout = setTimeout(() => {
+      if (scanPending[reqId]) {
+        delete scanPending[reqId];
+        resolve([]);
+      }
+    }, 8000);
+    scanPending[reqId] = function(digits) {
+      clearTimeout(timeout);
+      resolve(digits);
+    };
+    try {
+      socket.send(JSON.stringify({
+        ticks_history: symbol,
+        end: "latest",
+        count: count || HISTORY_LENGTH,
+        style: "ticks",
+        req_id: reqId
+      }));
+    } catch (e) {
+      clearTimeout(timeout);
+      delete scanPending[reqId];
+      resolve([]);
+    }
   });
 }
 
@@ -421,18 +432,43 @@ async function scanMarkets() {
 
   const scanTypeEl = document.getElementById("scanType");
   const selectedType = scanTypeEl ? scanTypeEl.value : "evenodd";
+  const ticksEl = document.getElementById("scanTicks");
+  let tickCount = ticksEl ? parseInt(ticksEl.value, 10) : 500;
+  if (isNaN(tickCount) || tickCount < 50) tickCount = 500;
+  if (tickCount > 2000) tickCount = 2000;
 
+  let scanned = 0;
   try {
     for (const sym of ALL_SYMBOLS) {
       if (oldMsg) oldMsg.textContent = "Scanning " + (names[sym] || sym) + "...";
-      const digits = await fetchHistoryFor(sym);
+      const digits = await fetchHistoryFor(sym, tickCount);
+      if (!digits || digits.length < 30) {
+        console.warn("No/low data for", sym, digits ? digits.length : 0);
+        continue;
+      }
+      scanned++;
       const signal = findBestSignal(digits, selectedType);
-      if (!overallBest || signal.deviation > overallBest.signal.deviation) {
+      if (!signal || !signal.type) continue;
+      // Prefer higher probability for even/odd; higher deviation otherwise
+      const score = (selectedType === "evenodd") ? signal.pct : signal.deviation;
+      const bestScore = overallBest
+        ? ((selectedType === "evenodd") ? overallBest.signal.pct : overallBest.signal.deviation)
+        : -1;
+      if (!overallBest || score > bestScore) {
         overallBest = { symbol: sym, signal: signal };
       }
     }
   } catch (err) {
     if (oldMsg) oldMsg.textContent = "Scan failed: " + (err.message || "connection lost");
+    scanBtn.disabled = false;
+    return;
+  }
+
+  if (scanned === 0) {
+    if (oldMsg) {
+      oldMsg.style.display = "block";
+      oldMsg.textContent = "No market data received. Click Connect Deriv and try again.";
+    }
     scanBtn.disabled = false;
     return;
   }
