@@ -4,84 +4,327 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trade Mate</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#0a0e14; --panel:#111826; --panel2:#0d1420; --border:#1e2937;
-    --text:#eef2f7; --muted:#7c8aa0;
-    --blue:#2f7bff; --green:#1fd15c; --yellow:#ffc21f; --red:#ff3b3b;
-    box-sizing:border-box;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{margin:0; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif}
-  .mono{font-family:'JetBrains Mono',monospace}
-  header{
-    position:sticky; top:0; z-index:10; padding:14px 16px;
-    background:rgba(10,14,20,0.92); backdrop-filter:blur(8px);
-    border-bottom:1px solid var(--border);
-    display:flex; align-items:center; justify-content:space-between;
-  }
-  .brand{font-weight:800; font-size:18px}
-  .brand span{color:var(--green)}
-  #status{
-    font-weight:700; font-size:12px; background:var(--panel2); border:1px solid var(--blue);
-    color:var(--blue); border-radius:20px; padding:6px 12px;
-  }
-  .tabs{display:flex; padding:0 16px; border-bottom:1px solid var(--border)}
-  .tab-btn{
-    flex:1; text-align:center; padding:12px 0; color:var(--muted);
-    font-size:13px; font-weight:700; border-bottom:2px solid transparent;
-    background:none; border-top:none; border-left:none; border-right:none;
-    font-family:inherit; cursor:pointer;
-  }
-  .tab-btn.active{color:var(--text); border-bottom-color:var(--green)}
-  .tab-panel{display:none}
-  .tab-panel.active{display:block}
-  main{padding:16px; max-width:520px; margin:0 auto}
-  .hero{padding:14px 0}
-  .hero h1{font-size:20px; margin:0 0 4px}
-  .hero p{color:var(--muted); font-size:13px; margin:0 0 10px}
-  .card{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:12px}
-  .label{font-size:11px; letter-spacing:0.06em; color:var(--muted); text-transform:uppercase; margin-bottom:10px; font-weight:700}
-  .digit-hero{display:flex; align-items:center; gap:16px}
-  .digit-circle{
-    width:70px; height:70px; border-radius:50%; border:3px solid var(--green);
-    display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:800;
-    box-shadow:0 0 18px rgba(31,209,92,0.4);
-  }
-  select, input{
-    width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--text);
-    border-radius:8px; padding:10px; font-size:13px; margin-top:8px; font-family:inherit;
-  }
-  .check-row{display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:var(--muted)}
-  .check-row input[type=checkbox]{width:auto; margin:0}
-  .type-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:8px}
-  .bot-tile{
-    text-align:center; padding:12px 4px; border-radius:10px; font-weight:800; font-size:13px;
-    border:2px solid var(--border); color:var(--muted); background:var(--panel2); cursor:pointer;
-  }
-  .bot-tile.selected[data-bot="over"]{background:rgba(31,209,92,0.15); color:var(--green); border-color:var(--green)}
-  .bot-tile.selected[data-bot="under"]{background:rgba(47,123,255,0.15); color:var(--blue); border-color:var(--blue)}
-  .bot-tile.selected[data-bot="match"]{background:rgba(255,194,31,0.15); color:var(--yellow); border-color:var(--yellow)}
-  .bot-tile.selected[data-bot="diff"]{background:rgba(255,59,59,0.15); color:var(--red); border-color:var(--red)}
-  .bot-tile.selected[data-bot="even"]{background:rgba(47,123,255,0.15); color:var(--blue); border-color:var(--blue)}
-  .bot-tile.selected[data-bot="odd"]{background:rgba(255,194,31,0.15); color:var(--yellow); border-color:var(--yellow)}
-  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-  .btn{display:block; width:100%; text-align:center; padding:13px; border-radius:10px; font-weight:800; font-size:14px; margin-top:10px; border:none; cursor:pointer; font-family:inherit}
-  .btn-green{background:var(--green); color:#04180c}
-  .btn-red{background:var(--red); color:#1c0303}
-  .btn-blue{background:var(--blue); color:#020c1c}
-  .btn-outline{background:var(--panel2); color:var(--text); border:1px solid var(--border)}
-  .hist-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); font-size:12px}
-  .hist-row:last-child{border-bottom:none}
-  .tag{padding:3px 9px; border-radius:20px; font-size:11px; font-weight:800}
-  .tag.win{background:rgba(31,209,92,0.18); color:var(--green)}
-  .tag.loss{background:rgba(255,59,59,0.18); color:var(--red)}
-  .tag.open{background:rgba(255,194,31,0.18); color:var(--yellow)}
-  .muted{color:var(--muted); font-size:12px}
-  footer{text-align:center; padding:20px; color:var(--muted); font-size:11px}
+:root {
+  --bg: #070b12;
+  --panel: #0f1623;
+  --panel2: #131c2c;
+  --border: #1c2a3d;
+  --text: #eef3f9;
+  --muted: #7a8ba3;
+  --blue: #2b7fff;
+  --teal: #00c2a8;
+  --red: #ff3b4a;
+  --orange: #ff6b2c;
+  --purple: #8b5cf6;
+  --green: #22c55e;
+  --yellow: #f59e0b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  padding-bottom: 90px;
+}
+.mono { font-family: 'Inter', monospace; }
+
+/* TOP BAR */
+header {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(7,11,18,0.94);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 11px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.brand { font-weight: 800; font-size: 17px; letter-spacing: -0.3px; }
+.brand span { color: var(--teal); }
+#status {
+  font-weight: 700; font-size: 12px;
+  background: var(--panel2); border: 1px solid var(--blue);
+  color: var(--blue); border-radius: 20px; padding: 5px 12px;
+}
+
+/* TABS */
+.tabs {
+  display: flex;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.tab-btn {
+  flex: 1; min-width: 80px; text-align: center;
+  padding: 12px 6px; font-size: 12px; font-weight: 600;
+  color: var(--muted); background: none; border: none;
+  border-bottom: 2px solid transparent; cursor: pointer;
+  font-family: inherit;
+}
+.tab-btn.active {
+  color: var(--text);
+  border-bottom-color: var(--blue);
+  background: rgba(43,127,255,0.08);
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+main { padding: 14px; max-width: 480px; margin: 0 auto; }
+
+/* CARDS */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.card.grad::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--blue), var(--teal));
+}
+.label {
+  font-size: 11px; letter-spacing: 0.07em; color: var(--muted);
+  text-transform: uppercase; margin-bottom: 10px; font-weight: 700;
+}
+
+/* FORM ELEMENTS */
+select, input[type="text"], input[type="password"], input[type="number"] {
+  width: 100%;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 13px; font-weight: 500;
+  font-family: inherit; outline: none;
+  margin-top: 4px;
+}
+select:focus, input:focus { border-color: var(--blue); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.field-label {
+  display: block; font-size: 11px; font-weight: 600;
+  color: var(--muted); margin-bottom: 4px; text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.check-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; font-size: 12px; color: var(--muted);
+}
+.check-row input[type=checkbox] { width: auto; margin: 0; }
+
+/* CURRENT TICK */
+.current-tick { text-align: center; padding: 6px 0 14px; }
+.current-tick .ct-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--muted); text-transform: uppercase; margin-bottom: 2px;
+}
+.current-tick .ct-price {
+  font-size: 30px; font-weight: 800; color: var(--orange);
+  letter-spacing: -1px;
+}
+
+/* DIGIT GRID (0-9 circles) */
+.digit-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 8px; margin-bottom: 12px;
+}
+.digit-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.digit-circle {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--panel2); border: 2.5px solid #1e3a5f;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800; transition: all 0.2s;
+}
+.digit-circle.active {
+  border-color: var(--orange);
+  box-shadow: 0 0 14px rgba(255,107,44,0.4);
+  color: var(--orange);
+}
+.digit-pct { font-size: 10px; font-weight: 600; color: var(--muted); }
+.digit-item.hot .digit-pct { color: var(--orange); }
+
+/* Live digit hero (bots tab) */
+.digit-hero { display: flex; align-items: center; gap: 14px; }
+.digit-hero .digit-circle {
+  width: 64px; height: 64px; font-size: 26px;
+  border-color: var(--teal);
+  box-shadow: 0 0 16px rgba(0,194,168,0.35);
+}
+
+/* Sequence boxes */
+.digit-seq {
+  display: flex; gap: 5px; justify-content: center;
+  margin-bottom: 12px; flex-wrap: wrap;
+}
+.seq-box {
+  width: 26px; height: 26px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: #fff;
+}
+.seq-box.even { background: var(--teal); }
+.seq-box.odd { background: var(--red); }
+
+/* BUTTONS */
+.btn {
+  display: block; width: 100%; text-align: center;
+  padding: 13px; border-radius: 12px;
+  font-weight: 700; font-size: 14px; margin-top: 10px;
+  border: none; cursor: pointer; font-family: inherit;
+  transition: transform 0.12s, opacity 0.15s;
+}
+.btn:active { transform: scale(0.97); }
+.btn-teal {
+  background: linear-gradient(135deg, #00c2a8, #00a892);
+  color: #fff; box-shadow: 0 4px 14px rgba(0,194,168,0.28);
+}
+.btn-red {
+  background: linear-gradient(135deg, #ff3b4a, #e02e3c);
+  color: #fff; box-shadow: 0 4px 14px rgba(255,59,74,0.28);
+}
+.btn-blue {
+  background: linear-gradient(135deg, #2b7fff, #1a6aef);
+  color: #fff; box-shadow: 0 4px 14px rgba(43,127,255,0.28);
+}
+.btn-outline {
+  background: var(--panel2); color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-green {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff; box-shadow: 0 4px 14px rgba(34,197,94,0.28);
+}
+.action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.action-row .btn { margin-top: 0; }
+
+/* BOT TILES */
+.type-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 6px; }
+.bot-tile {
+  text-align: center; padding: 12px 4px; border-radius: 10px;
+  font-weight: 700; font-size: 13px;
+  border: 2px solid var(--border); color: var(--muted);
+  background: var(--panel2); cursor: pointer; transition: all 0.15s;
+}
+.bot-tile.selected[data-bot="over"] { background: rgba(34,197,94,0.15); color: var(--green); border-color: var(--green); }
+.bot-tile.selected[data-bot="under"] { background: rgba(43,127,255,0.15); color: var(--blue); border-color: var(--blue); }
+.bot-tile.selected[data-bot="match"] { background: rgba(245,158,11,0.15); color: var(--yellow); border-color: var(--yellow); }
+.bot-tile.selected[data-bot="diff"] { background: rgba(255,59,74,0.15); color: var(--red); border-color: var(--red); }
+.bot-tile.selected[data-bot="even"] { background: rgba(0,194,168,0.15); color: var(--teal); border-color: var(--teal); }
+.bot-tile.selected[data-bot="odd"] { background: rgba(255,59,74,0.15); color: var(--red); border-color: var(--red); }
+
+/* SCANNER RESULT */
+.scan-result-box {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  margin-top: 12px;
+}
+.scan-result-box .best-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  color: var(--muted); text-transform: uppercase; margin-bottom: 6px;
+}
+.scan-result-box .best-market {
+  font-size: 16px; font-weight: 700; margin-bottom: 8px;
+}
+.scan-result-box .best-side {
+  display: inline-block;
+  padding: 6px 18px; border-radius: 20px;
+  font-size: 15px; font-weight: 800;
+}
+.scan-result-box .best-side.even {
+  background: rgba(0,194,168,0.18); color: var(--teal);
+}
+.scan-result-box .best-side.odd {
+  background: rgba(255,59,74,0.18); color: var(--red);
+}
+.scan-result-box .best-pct {
+  margin-top: 8px; font-size: 13px; color: var(--muted);
+}
+
+/* HISTORY */
+.hist-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.hist-row:last-child { border-bottom: none; }
+.tag {
+  padding: 3px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 800;
+}
+.tag.win { background: rgba(34,197,94,0.18); color: var(--green); }
+.tag.loss { background: rgba(255,59,74,0.18); color: var(--red); }
+.tag.open { background: rgba(245,158,11,0.18); color: var(--yellow); }
+
+.muted { color: var(--muted); font-size: 12px; }
+.hero { padding: 10px 0 4px; }
+.hero h1 { font-size: 18px; margin: 0 0 4px; }
+.hero p { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+
+/* STATUS BAR */
+.status-bar {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel2); border-radius: 10px;
+  padding: 10px 12px; font-size: 12px; color: var(--muted);
+  margin-top: 8px;
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
+}
+.status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+/* BOTTOM BAR */
+.bottom-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: rgba(7,11,18,0.96);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  padding: 11px 14px;
+  display: flex; align-items: center; gap: 12px;
+  z-index: 50;
+}
+.run-btn {
+  background: linear-gradient(135deg, #00c2a8, #00a892);
+  color: #fff; border: none; border-radius: 12px;
+  padding: 11px 20px; font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,194,168,0.3); font-family: inherit;
+}
+.speed-control {
+  flex: 1; background: var(--panel2); border-radius: 10px;
+  padding: 8px 12px; display: flex; align-items: center; gap: 10px;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+}
+.speed-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--orange); margin-left: auto;
+}
+
+/* AI FAB */
+.ai-fab {
+  position: fixed; bottom: 78px; right: 14px;
+  width: 50px; height: 50px; border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff; font-weight: 800; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 20px rgba(139,92,246,0.45);
+  border: 2px solid rgba(255,255,255,0.12);
+  z-index: 60; cursor: pointer;
+}
+.ai-fab::after {
+  content: '';
+  position: absolute; top: 5px; right: 5px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green); border: 2px solid #6d28d9;
+}
+
+footer { text-align: center; padding: 16px; color: var(--muted); font-size: 11px; }
 </style>
 </head>
 <body>
@@ -91,59 +334,27 @@
   <div id="status" class="mono">Not connected</div>
 </header>
 
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+  <button class="tab-btn" data-tab="analysis">Analysis</button>
+  <button class="tab-btn" data-tab="bots">Bots</button>
+  <button class="tab-btn" data-tab="scanner">Scanner</button>
+</nav>
+
 <main>
 
-  <div class="hero">
-    <h1>Trade Mate</h1>
-    <p>Pick a bot or trade manually — you're always in control.</p>
-    <button id="connect" class="btn btn-green">Connect Deriv</button>
-  </div>
-
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
-    <button class="tab-btn" data-tab="bots">Bots</button>
-  </div>
-
-  <!-- ===================== DASHBOARD TAB ===================== -->
-  <div class="tab-panel active" id="tab-dashboard" style="margin-top:14px">
-
-    <div class="card">
-      <div class="label">Market</div>
-      <select id="market">
-        <option value="R_10">Volatility 10</option>
-        <option value="R_25">Volatility 25</option>
-        <option value="R_50">Volatility 50</option>
-        <option value="R_75">Volatility 75</option>
-        <option value="R_100">Volatility 100</option>
-      </select>
+  <!-- ===================== DASHBOARD ===================== -->
+  <div class="tab-panel active" id="tab-dashboard">
+    <div class="hero">
+      <h1>Trade Mate</h1>
+      <p>Pick a bot or trade manually — you're always in control.</p>
+      <button id="connect" class="btn btn-teal" style="margin-top:0">Connect Deriv</button>
     </div>
 
-    <div class="card">
-      <div class="label">Live Digit</div>
-      <div class="digit-hero">
-        <div class="digit-circle mono" id="digit">—</div>
-        <div>
-          <div class="mono" style="font-weight:800; font-size:18px; color:var(--green)" id="signal">WAIT</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="label">Digit Stats (last 500 ticks)</div>
-      <div id="digitStats" class="muted mono">Waiting for ticks...</div>
-    </div>
-
-    <div class="card">
-      <div class="label">AI Market Scanner</div>
-      <button id="scanBtn" class="btn btn-outline">Scan Markets</button>
-      <div id="scanResult" class="muted" style="margin-top:8px">Not scanned yet</div>
-      <button id="loadScanBtn" class="btn btn-green" style="display:none">Load & Run This</button>
-    </div>
-
-    <div class="card">
+    <div class="card grad">
       <div class="label">Account</div>
       <input type="password" id="patToken" placeholder="Paste your API token">
-      <select id="accountType">
+      <select id="accountType" style="margin-top:8px">
         <option value="demo">Demo</option>
         <option value="real">Real</option>
       </select>
@@ -154,39 +365,125 @@
 
     <div class="card">
       <div class="label">Balance</div>
-      <div class="mono" style="font-weight:800; font-size:22px; color:var(--green)" id="balance">—</div>
+      <div class="mono" style="font-weight:800; font-size:24px; color:var(--teal)" id="balance">—</div>
     </div>
 
     <div class="card">
       <div class="label">Wallet</div>
-      <div class="type-grid">
-        <button id="depositBtn" class="btn btn-blue" style="margin-top:0">Deposit</button>
-        <button id="withdrawBtn" class="btn btn-outline" style="margin-top:0">Withdraw</button>
-        <button id="topupBtn" class="btn btn-outline" style="margin-top:0">Top Up</button>
+      <div class="row3">
+        <button id="depositBtn" class="btn btn-blue" style="margin-top:0; padding:11px; font-size:13px">Deposit</button>
+        <button id="withdrawBtn" class="btn btn-outline" style="margin-top:0; padding:11px; font-size:13px">Withdraw</button>
+        <button id="topupBtn" class="btn btn-outline" style="margin-top:0; padding:11px; font-size:13px">Top Up</button>
       </div>
       <div id="walletStatus" class="muted" style="margin-top:8px"></div>
     </div>
-
   </div>
 
-  <!-- ===================== BOTS TAB ===================== -->
-  <div class="tab-panel" id="tab-bots" style="margin-top:14px">
+  <!-- ===================== ANALYSIS ===================== -->
+  <div class="tab-panel" id="tab-analysis">
+    <div class="card grad">
+      <div class="row2" style="margin-bottom:10px">
+        <div>
+          <span class="field-label">Market</span>
+          <select id="market">
+            <option value="R_10">Volatility 10 (1s)</option>
+            <option value="R_25">Volatility 25 (1s)</option>
+            <option value="R_50">Volatility 50 (1s)</option>
+            <option value="R_75">Volatility 75 (1s)</option>
+            <option value="R_100" selected>Volatility 100 (1s)</option>
+          </select>
+        </div>
+        <div>
+          <span class="field-label">Trade Type</span>
+          <select id="analysisTradeType">
+            <option value="evenodd">Even/Odd</option>
+            <option value="overunder">Over/Under</option>
+            <option value="matchdiff">Match/Differ</option>
+          </select>
+        </div>
+      </div>
 
-    <div class="card">
+      <div style="margin-bottom:8px">
+        <span class="field-label">Number of Ticks</span>
+        <input type="number" id="tickCount" value="500" min="50" max="2000">
+      </div>
+
+      <div class="current-tick">
+        <div class="ct-label">Current Tick</div>
+        <div class="ct-price mono" id="currentTickPrice">—</div>
+      </div>
+
+      <!-- Digit circles 0-9 -->
+      <div class="digit-grid" id="digitGrid">
+        <div class="digit-item" data-d="0"><div class="digit-circle mono">0</div><div class="digit-pct" id="pct0">—</div></div>
+        <div class="digit-item" data-d="1"><div class="digit-circle mono">1</div><div class="digit-pct" id="pct1">—</div></div>
+        <div class="digit-item" data-d="2"><div class="digit-circle mono">2</div><div class="digit-pct" id="pct2">—</div></div>
+        <div class="digit-item" data-d="3"><div class="digit-circle mono">3</div><div class="digit-pct" id="pct3">—</div></div>
+        <div class="digit-item" data-d="4"><div class="digit-circle mono">4</div><div class="digit-pct" id="pct4">—</div></div>
+        <div class="digit-item" data-d="5"><div class="digit-circle mono">5</div><div class="digit-pct" id="pct5">—</div></div>
+        <div class="digit-item" data-d="6"><div class="digit-circle mono">6</div><div class="digit-pct" id="pct6">—</div></div>
+        <div class="digit-item" data-d="7"><div class="digit-circle mono">7</div><div class="digit-pct" id="pct7">—</div></div>
+        <div class="digit-item" data-d="8"><div class="digit-circle mono">8</div><div class="digit-pct" id="pct8">—</div></div>
+        <div class="digit-item" data-d="9"><div class="digit-circle mono">9</div><div class="digit-pct" id="pct9">—</div></div>
+      </div>
+
+      <!-- Last digits sequence -->
+      <div class="digit-seq" id="digitSeq"></div>
+
+      <div class="row3" style="margin-bottom:10px">
+        <div>
+          <span class="field-label">Ticks</span>
+          <input type="number" id="ticksDuration" value="1" min="1" max="10">
+        </div>
+        <div>
+          <span class="field-label">Stake</span>
+          <input type="number" id="stakeAmount" value="0.5" min="0.35" step="0.01">
+        </div>
+        <div>
+          <span class="field-label">No of Trades</span>
+          <input type="number" id="maxTrades" value="1" min="1">
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-teal" id="btnEven">Even</button>
+        <button class="btn btn-red" id="btnOdd">Odd</button>
+      </div>
+
+      <div class="status-bar">
+        <div class="status-dot" id="botStatusDot"></div>
+        <span id="tradeStatus">Bot is not running</span>
+      </div>
+    </div>
+
+    <!-- Hidden live digit for JS compatibility -->
+    <div style="display:none">
+      <div id="digit">—</div>
+      <div id="signal">WAIT</div>
+      <div id="digitStats">Waiting for ticks...</div>
+    </div>
+  </div>
+
+  <!-- ===================== BOTS ===================== -->
+  <div class="tab-panel" id="tab-bots">
+    <div class="card grad">
       <div class="label">Market</div>
       <select id="marketBots">
-        <option value="R_10">Volatility 10</option>
-        <option value="R_25">Volatility 25</option>
-        <option value="R_50">Volatility 50</option>
-        <option value="R_75">Volatility 75</option>
-        <option value="R_100">Volatility 100</option>
+        <option value="R_10">Volatility 10 (1s)</option>
+        <option value="R_25">Volatility 25 (1s)</option>
+        <option value="R_50">Volatility 50 (1s)</option>
+        <option value="R_75">Volatility 75 (1s)</option>
+        <option value="R_100" selected>Volatility 100 (1s)</option>
       </select>
     </div>
 
     <div class="card">
-      <div class="label">Live</div>
+      <div class="label">Live Digit</div>
       <div class="digit-hero">
         <div class="digit-circle mono" id="digitLive">—</div>
+        <div>
+          <div class="mono" style="font-weight:800; font-size:16px; color:var(--teal)" id="signalLive">WAIT</div>
+        </div>
       </div>
       <div id="digitStatsLive" class="muted mono" style="margin-top:10px">Waiting for ticks...</div>
     </div>
@@ -212,14 +509,18 @@
     <div class="card">
       <div class="label">Bot Control</div>
       <div class="row2">
-        <input type="number" id="botBarrier" placeholder="Digit 0-9" min="0" max="9" value="5">
-        <input type="number" id="stakeAmount" placeholder="Stake $" value="1" min="0.35" step="0.01">
-        <input type="number" id="ticksDuration" placeholder="Ticks" value="5" min="1" max="10">
-        <input type="number" id="maxTrades" placeholder="Max trades" value="10" min="1">
+        <div>
+          <span class="field-label">Barrier</span>
+          <input type="number" id="botBarrier" placeholder="Digit 0-9" min="0" max="9" value="5">
+        </div>
+        <div>
+          <span class="field-label">Stake</span>
+          <input type="number" id="stakeAmountBots" placeholder="Stake $" value="1" min="0.35" step="0.01">
+        </div>
       </div>
-      <button id="startBtn" class="btn btn-green">Start Bot</button>
+      <button id="startBtn" class="btn btn-teal">Start Bot</button>
       <button id="stopBtn" class="btn btn-red">Stop</button>
-      <div id="tradeStatus" class="muted" style="margin-top:8px">Stopped</div>
+      <div id="tradeStatusBots" class="muted" style="margin-top:8px">Stopped</div>
     </div>
 
     <div class="card">
@@ -232,7 +533,7 @@
         <option value="DIGITMATCH">Matches</option>
         <option value="DIGITDIFF">Differs</option>
       </select>
-      <input type="number" id="manualBarrier" placeholder="Digit 0-9" min="0" max="9">
+      <input type="number" id="manualBarrier" placeholder="Digit 0-9" min="0" max="9" style="margin-top:8px">
       <button id="manualBuyBtn" class="btn btn-blue">Place Manual Trade</button>
     </div>
 
@@ -240,14 +541,9 @@
       <div class="label">Trade History</div>
       <div id="tradeHistory" class="muted">No trades yet</div>
     </div>
-
   </div>
 
-</main>
-
-<footer>Trade Mate</footer>
-
-<script src="app2.js"></script>
-<script src="app3.js"></script>
-</body>
-  </html>
+  <!-- ===================== SCANNER ===================== -->
+  <div class="tab-panel" id="tab-scanner">
+    <div class="card grad">
+      <div class="label">A
