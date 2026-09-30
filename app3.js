@@ -9,163 +9,118 @@ async function authenticate() {
     try { localStorage.setItem("trademate_pat", token); } catch (e) {}
   }
 
-  accountStatus.textContent = "Fetching accounts...";
+  accountStatus.textContent = "Authorizing...";
+
+  // Classic Deriv WebSocket authorize (most reliable in browser)
+  const APP = (typeof APP_ID !== "undefined" && APP_ID && /^\d+$/.test(String(APP_ID)))
+    ? APP_ID
+    : "1089";
 
   try {
-    const res = await fetch("https://api.derivws.com/trading/v1/options/accounts", {
-      headers: {
-        "Authorization": "Bearer " + token,
-        "Deriv-App-ID": APP_ID
-      }
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      accountStatus.textContent = "Auth error: " + (data.errors ? data.errors[0].message : res.status);
-      return;
+    if (authSocket) {
+      try { authSocket.close(); } catch (e) {}
     }
 
-    accounts = {};
-    (data.data || []).forEach(acc => {
-      accounts[acc.account_type] = acc.account_id;
-    });
+    authSocket = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=" + APP);
 
-    accountStatus.textContent = "Found: " + Object.keys(accounts).join(", ");
-    await connectAuthSocket();
+    authSocket.onopen = function () {
+      authSocket.send(JSON.stringify({ authorize: token }));
+    };
+
+    authSocket.onerror = function () {
+      accountStatus.textContent = "Trading connection error — check token & internet";
+    };
+
+    authSocket.onclose = function (event) {
+      if (accountStatus.textContent.indexOf("Trading ready") === -1) {
+        accountStatus.textContent = "Connection closed (" + event.code + "). Try Authenticate again.";
+      }
+      isAutoTrading = false;
+    };
+
+    authSocket.onmessage = function (event) {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (e) {
+        accountStatus.textContent = "Bad response from server";
+        return;
+      }
+      console.log("Auth message:", data);
+
+      if (data.error) {
+        accountStatus.textContent = "Auth error: " + data.error.message;
+        if (tradeStatus) tradeStatus.textContent = "Error: " + data.error.message;
+        return;
+      }
+
+      if (data.msg_type === "authorize" && data.authorize) {
+        const auth = data.authorize;
+        const loginid = auth.loginid || "";
+        const isVirtual = auth.is_virtual === 1 || (loginid + "").indexOf("VR") === 0;
+        accountStatus.textContent = "Trading ready (" + (isVirtual ? "demo" : "real") + ") · " + loginid;
+
+        // Request balance
+        authSocket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+        return;
+      }
+
+      if (data.msg_type === "balance" && data.balance) {
+        if (balanceDisplay) {
+          balanceDisplay.textContent = data.balance.balance + " " + (data.balance.currency || "USD");
+        }
+        return;
+      }
+
+      if (data.error) {
+        if (tradeStatus) tradeStatus.textContent = "Error: " + data.error.message;
+        awaitingSettlement = false;
+        return;
+      }
+
+      // Buy confirmation
+      if (data.msg_type === "buy" && data.buy) {
+        if (tradeStatus) tradeStatus.textContent = "Contract opened · ID " + (data.buy.contract_id || "");
+        if (typeof lastPlacedContractId !== "undefined") lastPlacedContractId = data.buy.contract_id;
+        // Subscribe to contract updates
+        if (data.buy.contract_id) {
+          authSocket.send(JSON.stringify({
+            proposal_open_contract: 1,
+            contract_id: data.buy.contract_id,
+            subscribe: 1
+          }));
+        }
+        return;
+      }
+
+      if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+        const poc = data.proposal_open_contract;
+        if (poc.is_sold || poc.status === "sold") {
+          const profit = poc.profit;
+          if (tradeStatus) {
+            tradeStatus.textContent = profit >= 0
+              ? "Won +" + profit
+              : "Lost " + profit;
+          }
+          if (typeof handleTradeSettled === "function") handleTradeSettled();
+          awaitingSettlement = false;
+        }
+        return;
+      }
+
+      // Keep any extra handlers that were in the original message loop
+      if (data.msg_type === "cashier" && walletStatus) {
+        walletStatus.textContent = data.cashier || "Cashier response received";
+      }
+    };
   } catch (e) {
     accountStatus.textContent = "Auth failed: " + e.message;
   }
 }
 
+// Kept for compatibility — now authorize handles everything
 async function connectAuthSocket() {
-  const type = accountType.value;
-  const accId = accounts[type];
-
-  if (!accId) {
-    accountStatus.textContent = "No " + type + " account found on your login";
-    return;
-  }
-
-  const token = patToken.value.trim();
-
-  try {
-    const otpRes = await fetch(
-      "https://api.derivws.com/trading/v1/options/accounts/" + accId + "/otp",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + token,
-          "Deriv-App-ID": APP_ID
-        }
-      }
-    );
-    const otpData = await otpRes.json();
-
-    if (!otpRes.ok) {
-      accountStatus.textContent = "OTP error: " + (otpData.errors ? otpData.errors[0].message : otpRes.status);
-      return;
-    }
-
-    const wsUrl = otpData.data.url;
-
-    if (authSocket) authSocket.close();
-    authSocket = new WebSocket(wsUrl);
-
-    authSocket.onopen = function () {
-      accountStatus.textContent = "Trading ready (" + type + ")";
-      authSocket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-    };
-
-    authSocket.onerror = function () {
-      accountStatus.textContent = "Trading connection error";
-    };
-
-    authSocket.onclose = function (event) {
-      accountStatus.textContent = "Trading connection closed (" + event.code + ")";
-      isAutoTrading = false;
-    };
-
-    authSocket.onmessage = function (event) {
-      const data = JSON.parse(event.data);
-      console.log("Auth message:", data);
-
-      if (data.error) {
-        tradeStatus.textContent = "Error: " + data.error.message;
-        if (walletStatus) walletStatus.textContent = "Error: " + data.error.message;
-        awaitingSettlement = false;
-        return;
-      }
-
-      if (data.msg_type === "balance" && data.balance) {
-        balanceDisplay.textContent = data.balance.balance + " " + data.balance.currency;
-      }
-
-      if (data.msg_type === "cashier" && data.cashier) {
-        walletStatus.textContent = "Opening cashier...";
-        window.open(data.cashier, "_blank");
-      }
-
-      if (data.msg_type === "topup_virtual") {
-        if (data.topup_virtual && data.topup_virtual.amount) {
-          walletStatus.textContent = "Topped up: +" + data.topup_virtual.amount;
-        } else {
-          walletStatus.textContent = "Top-up not available right now";
-        }
-      }
-
-      if (data.msg_type === "buy" && data.buy) {
-        const contractId = data.buy.contract_id;
-        lastPlacedContractId = contractId;
-        const trade = pendingTrade || { contract_type: "UNKNOWN", barrier: null };
-
-        trades.unshift({
-          contractId: contractId,
-          symbol: marketSelect.value,
-          contractType: trade.contract_type,
-          barrier: trade.barrier,
-          stake: parseFloat(stakeAmount.value),
-          status: "open",
-          profit: null,
-          exitDigit: null
-        });
-        renderTradeHistory();
-        pendingTrade = null;
-
-        authSocket.send(JSON.stringify({
-          proposal_open_contract: 1,
-          contract_id: contractId,
-          subscribe: 1
-        }));
-      }
-
-      if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
-        const contract = data.proposal_open_contract;
-        const trade = trades.find(t => t.contractId === contract.contract_id);
-        if (trade) {
-          const profit = parseFloat(contract.profit);
-          trade.profit = profit;
-
-          if (contract.is_sold) {
-            trade.status = profit >= 0 ? "won" : "lost";
-            if (contract.exit_spot !== undefined) {
-              trade.exitDigit = lastDigitOf(contract.exit_spot);
-            }
-            renderTradeHistory();
-
-            if (awaitingSettlement && trade.contractId === lastPlacedContractId) {
-              awaitingSettlement = false;
-              handleTradeSettled();
-            }
-          } else {
-            trade.status = "open";
-            renderTradeHistory();
-          }
-        }
-      }
-    };
-  } catch (e) {
-    accountStatus.textContent = "Connection failed: " + e.message;
-  }
+  await authenticate();
 }
 
 function outcomeExplanation(t) {
@@ -441,3 +396,4 @@ if (loadScanBtn) {
 
 setStatus("Not connected");
 connectDeriv();
+          
