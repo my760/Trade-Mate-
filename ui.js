@@ -27,10 +27,13 @@ function updateDigitCircles(counts, total, lastDigit) {
     const item = document.querySelector('.digit-item[data-d="' + d + '"]');
     if (item) {
       const circle = item.querySelector(".digit-circle");
-      circle.classList.toggle("active", d === lastDigit);
+      if (circle) {
+        circle.classList.toggle("active", d === lastDigit);
+      }
       item.classList.toggle("hot", d === lastDigit);
     }
   }
+  updateAnalysisHint();
 }
 
 /* Sequence display — follows the selected trade type */
@@ -153,11 +156,6 @@ document.getElementById("analysisBarrier")?.addEventListener("input", function (
   if (typeof digitHistory !== "undefined") updateDigitSeq(digitHistory);
 });
 
-const _origUpdateCircles = typeof updateDigitCircles === "function" ? updateDigitCircles : null;
-window.updateDigitCircles = function (counts, total, lastDigit) {
-  if (_origUpdateCircles) _origUpdateCircles(counts, total, lastDigit);
-  updateAnalysisHint();
-};
 refreshAnalysisUI();
 
 /* Scanner result display helper */
@@ -176,3 +174,71 @@ function showScanResult(marketName, side, pct) {
   const loadBtn = document.getElementById("loadScanBtn");
   if (loadBtn) loadBtn.style.display = "block";
 }
+
+/* Analysis buttons → PLACE TRADE */
+function placeAnalysisTrade(side) {
+  const statusEl = document.getElementById("tradeStatus");
+
+  if (typeof authSocket === "undefined" || !authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    if (statusEl) statusEl.textContent = "Authenticate first (Dashboard → token → Authenticate)";
+    return;
+  }
+
+  const typeEl = document.getElementById("analysisTradeType");
+  const type = typeEl ? typeEl.value : "evenodd";
+  const barrierEl = document.getElementById("analysisBarrier");
+  const barrier = barrierEl ? barrierEl.value : "5";
+  const symbol = document.getElementById("market")?.value || "R_100";
+  const stake = parseFloat(document.getElementById("stakeAmount")?.value || "0.5");
+  const ticks = parseInt(document.getElementById("ticksDuration")?.value || "1", 10);
+
+  let contractType = "DIGITEVEN";
+  let needsBarrier = false;
+  let label = "";
+
+  if (type === "evenodd") {
+    contractType = side === "A" ? "DIGITEVEN" : "DIGITODD";
+    label = side === "A" ? "Even" : "Odd";
+  } else if (type === "overunder") {
+    contractType = side === "A" ? "DIGITOVER" : "DIGITUNDER";
+    needsBarrier = true;
+    label = (side === "A" ? "Over " : "Under ") + barrier;
+  } else {
+    contractType = side === "A" ? "DIGITMATCH" : "DIGITDIFF";
+    needsBarrier = true;
+    label = (side === "A" ? "Match " : "Differ ") + barrier;
+  }
+
+  const parameters = {
+    amount: stake,
+    basis: "stake",
+    contract_type: contractType,
+    currency: "USD",
+    duration: ticks,
+    duration_unit: "t",
+    underlying_symbol: symbol
+  };
+  if (needsBarrier) parameters.barrier = barrier;
+
+  if (typeof pendingTrade !== "undefined") {
+    pendingTrade = { contract_type: contractType, barrier: needsBarrier ? barrier : null };
+  }
+
+  authSocket.send(JSON.stringify({
+    buy: "1",
+    price: stake.toString(),
+    parameters: parameters
+  }));
+
+  if (statusEl) statusEl.textContent = "Trade placed: " + label + " · $" + stake + " · " + ticks + " tick(s)";
+  const dot = document.getElementById("botStatusDot");
+  if (dot) dot.classList.add("live");
+}
+
+document.getElementById("btnSideA")?.addEventListener("click", function () {
+  placeAnalysisTrade("A");
+});
+document.getElementById("btnSideB")?.addEventListener("click", function () {
+  placeAnalysisTrade("B");
+});
+  
