@@ -2,7 +2,7 @@ window.onerror = function (msg) {
   document.getElementById("status").textContent = "JS Error: " + msg;
 };
 
-const APP_ID = "34qc7VTAO1l6XjqsL06jn";
+const APP_ID = "1089";
 
 const BOT_PRESETS = {
   over: { label: "Digit Over", contract_type: "DIGITOVER", needsBarrier: true },
@@ -68,9 +68,6 @@ let scanReqCounter = 1000;
 const scanPending = {};
 const ALL_SYMBOLS = ["R_10", "R_25", "R_50", "R_75", "R_100"];
 const HISTORY_LENGTH = 500;
-
-// Decimal places per market (needed so trailing zeros are not lost)
-const decimalsBySymbol = {};
 
 try {
   const savedToken = localStorage.getItem("trademate_pat");
@@ -143,25 +140,20 @@ function connectDeriv() {
 
   socket.onmessage = function (event) {
     const data = JSON.parse(event.data);
+    console.log("Message:", data);
 
     if (data.error) {
-      // Scan requests that fail should not hang; resolve them empty
-      if (data.req_id && scanPending[data.req_id]) {
-        const resolve = scanPending[data.req_id];
-        delete scanPending[data.req_id];
-        if (typeof resolve === "function") resolve([], null);
-        return;
-      }
       setStatus("API Error: " + data.error.message);
       return;
     }
 
-    // Scanner history replies (matched by req_id, kept separate from live data)
     if (data.req_id && scanPending[data.req_id]) {
       const resolve = scanPending[data.req_id];
       delete scanPending[data.req_id];
-      const prices = data.history && data.history.prices ? data.history.prices : [];
-      if (typeof resolve === "function") resolve(prices, data.pip_size);
+      const digits = data.history && data.history.prices
+        ? data.history.prices.map(p => lastDigitOf(p))
+        : [];
+      if (typeof resolve === "function") resolve(digits);
       return;
     }
 
@@ -175,18 +167,11 @@ function connectDeriv() {
     }
 
     if (data.msg_type === "history" && data.history) {
-      const sym = (data.echo_req && data.echo_req.ticks_history) || currentSymbol;
-      // Ignore stale history from a market we already switched away from
-      if (sym !== currentSymbol) return;
-      digitHistory = digitsFromPrices(data.history.prices, sym, data.pip_size);
+      digitHistory = data.history.prices.map(p => lastDigitOf(p));
       renderDigitStats();
     }
 
     if (data.msg_type === "tick" && data.tick) {
-      if (data.tick.symbol && data.tick.symbol !== currentSymbol) return;
-      if (data.tick.pip_size !== undefined && currentSymbol) {
-        decimalsBySymbol[currentSymbol] = data.tick.pip_size;
-      }
       updateDigit(data.tick.quote);
     }
   };
@@ -214,38 +199,9 @@ function subscribeToTicks(symbol) {
   socket.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
 }
 
-// Work out how many decimals a market uses, then read digits with trailing zeros kept
-function digitsFromPrices(prices, symbol, pipSize) {
-  if (!prices || !prices.length) return [];
-
-  let dec = 0;
-  if (pipSize !== undefined && pipSize !== null && !isNaN(pipSize)) {
-    dec = Number(pipSize);
-  } else {
-    prices.forEach(p => {
-      const parts = p.toString().split(".");
-      const len = parts[1] ? parts[1].length : 0;
-      if (len > dec) dec = len;
-    });
-  }
-
-  if (symbol) {
-    decimalsBySymbol[symbol] = Math.max(dec, decimalsBySymbol[symbol] || 0);
-    dec = decimalsBySymbol[symbol];
-  }
-
-  return prices.map(p => {
-    const s = Number(p).toFixed(dec);
-    return parseInt(s[s.length - 1], 10);
-  });
-}
-
 function lastDigitOf(price) {
-  const dec = (currentSymbol && decimalsBySymbol[currentSymbol] !== undefined)
-    ? decimalsBySymbol[currentSymbol]
-    : ((price.toString().split(".")[1] || "").length);
-  const s = Number(price).toFixed(dec);
-  return parseInt(s[s.length - 1], 10);
+  const str = price.toString();
+  return parseInt(str[str.length - 1], 10);
 }
 
 function updateDigit(quote) {
@@ -418,7 +374,6 @@ function setStatus(message) {
   }
 }
 
-// Fetch history for one market and return its digits (trailing zeros kept)
 function fetchHistoryFor(symbol, count) {
   return new Promise((resolve) => {
     const reqId = scanReqCounter++;
@@ -428,9 +383,9 @@ function fetchHistoryFor(symbol, count) {
         resolve([]);
       }
     }, 8000);
-    scanPending[reqId] = function (prices, pipSize) {
+    scanPending[reqId] = function(digits) {
       clearTimeout(timeout);
-      resolve(digitsFromPrices(prices, symbol, pipSize));
+      resolve(digits);
     };
     try {
       socket.send(JSON.stringify({
@@ -556,3 +511,4 @@ function loadScanResult() {
   const botsTab = document.querySelector('.tab-btn[data-tab="bots"]');
   if (botsTab) botsTab.click();
   }
+  
