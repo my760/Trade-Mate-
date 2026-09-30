@@ -5,36 +5,83 @@ async function authenticate() {
     return;
   }
 
+  // Basic token shape check (Deriv tokens usually start with a1- or similar)
+  if (token.length < 10) {
+    accountStatus.textContent = "Token looks too short — paste the full API token";
+    return;
+  }
+
   if (rememberToken && rememberToken.checked) {
     try { localStorage.setItem("trademate_pat", token); } catch (e) {}
   }
 
-  accountStatus.textContent = "Authorizing...";
+  accountStatus.textContent = "Connecting to Deriv...";
 
-  // Classic Deriv WebSocket authorize (most reliable in browser)
   const APP = (typeof APP_ID !== "undefined" && APP_ID && /^\d+$/.test(String(APP_ID)))
-    ? APP_ID
+    ? String(APP_ID)
     : "1089";
 
-  try {
-    if (authSocket) {
-      try { authSocket.close(); } catch (e) {}
-    }
+  const endpoints = [
+    "wss://ws.derivws.com/websockets/v3?app_id=" + APP,
+    "wss://ws.binaryws.com/websockets/v3?app_id=" + APP
+  ];
 
-    authSocket = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=" + APP);
+  let authorized = false;
+  let tried = 0;
+
+  function wireSocket(url) {
+    tried++;
+    accountStatus.textContent = "Connecting... (" + tried + "/" + endpoints.length + ")";
+
+    try {
+      if (authSocket) {
+        try { authSocket.onclose = null; authSocket.close(); } catch (e) {}
+      }
+    } catch (e) {}
+
+    authSocket = new WebSocket(url);
+
+    const connectTimeout = setTimeout(function () {
+      if (!authorized && authSocket && authSocket.readyState !== WebSocket.OPEN) {
+        try { authSocket.close(); } catch (e) {}
+      }
+    }, 12000);
 
     authSocket.onopen = function () {
+      clearTimeout(connectTimeout);
+      accountStatus.textContent = "Authorizing...";
       authSocket.send(JSON.stringify({ authorize: token }));
+      // keepalive
+      try {
+        authSocket._ping = setInterval(function () {
+          if (authSocket && authSocket.readyState === WebSocket.OPEN) {
+            authSocket.send(JSON.stringify({ ping: 1 }));
+          }
+        }, 30000);
+      } catch (e) {}
     };
 
     authSocket.onerror = function () {
-      accountStatus.textContent = "Trading connection error — check token & internet";
+      console.warn("Auth WS error on", url);
     };
 
     authSocket.onclose = function (event) {
-      if (accountStatus.textContent.indexOf("Trading ready") === -1) {
-        accountStatus.textContent = "Connection closed (" + event.code + "). Try Authenticate again.";
+      clearTimeout(connectTimeout);
+      if (authSocket && authSocket._ping) {
+        clearInterval(authSocket._ping);
       }
+      if (authorized) {
+        accountStatus.textContent = "Trading connection closed (" + event.code + "). Press Authenticate again.";
+        isAutoTrading = false;
+        return;
+      }
+      // Try next endpoint
+      if (tried < endpoints.length) {
+        wireSocket(endpoints[tried]);
+        return;
+      }
+      accountStatus.textContent =
+        "Connection closed (" + event.code + "). Check: 1) token is valid 2) token has Trade scope 3) try again";
       isAutoTrading = false;
     };
 
@@ -43,24 +90,28 @@ async function authenticate() {
       try {
         data = JSON.parse(event.data);
       } catch (e) {
-        accountStatus.textContent = "Bad response from server";
         return;
       }
       console.log("Auth message:", data);
 
       if (data.error) {
-        accountStatus.textContent = "Auth error: " + data.error.message;
-        if (tradeStatus) tradeStatus.textContent = "Error: " + data.error.message;
+        const msg = data.error.message || "Unknown error";
+        accountStatus.textContent = "Auth error: " + msg;
+        if (tradeStatus) tradeStatus.textContent = "Error: " + msg;
+        // Invalid token — don't keep retrying forever
+        if (String(msg).toLowerCase().indexOf("token") !== -1) {
+          authorized = false;
+          tried = endpoints.length;
+        }
         return;
       }
 
       if (data.msg_type === "authorize" && data.authorize) {
+        authorized = true;
         const auth = data.authorize;
         const loginid = auth.loginid || "";
-        const isVirtual = auth.is_virtual === 1 || (loginid + "").indexOf("VR") === 0;
+        const isVirtual = auth.is_virtual === 1 || (loginid + "").toUpperCase().indexOf("VR") === 0;
         accountStatus.textContent = "Trading ready (" + (isVirtual ? "demo" : "real") + ") · " + loginid;
-
-        // Request balance
         authSocket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
         return;
       }
@@ -72,17 +123,9 @@ async function authenticate() {
         return;
       }
 
-      if (data.error) {
-        if (tradeStatus) tradeStatus.textContent = "Error: " + data.error.message;
-        awaitingSettlement = false;
-        return;
-      }
-
-      // Buy confirmation
       if (data.msg_type === "buy" && data.buy) {
         if (tradeStatus) tradeStatus.textContent = "Contract opened · ID " + (data.buy.contract_id || "");
         if (typeof lastPlacedContractId !== "undefined") lastPlacedContractId = data.buy.contract_id;
-        // Subscribe to contract updates
         if (data.buy.contract_id) {
           authSocket.send(JSON.stringify({
             proposal_open_contract: 1,
@@ -98,9 +141,7 @@ async function authenticate() {
         if (poc.is_sold || poc.status === "sold") {
           const profit = poc.profit;
           if (tradeStatus) {
-            tradeStatus.textContent = profit >= 0
-              ? "Won +" + profit
-              : "Lost " + profit;
+            tradeStatus.textContent = profit >= 0 ? "Won +" + profit : "Lost " + profit;
           }
           if (typeof handleTradeSettled === "function") handleTradeSettled();
           awaitingSettlement = false;
@@ -108,17 +149,13 @@ async function authenticate() {
         return;
       }
 
-      // Keep any extra handlers that were in the original message loop
-      if (data.msg_type === "cashier" && walletStatus) {
-        walletStatus.textContent = data.cashier || "Cashier response received";
-      }
+      if (data.msg_type === "ping") return;
     };
-  } catch (e) {
-    accountStatus.textContent = "Auth failed: " + e.message;
   }
+
+  wireSocket(endpoints[0]);
 }
 
-// Kept for compatibility — now authorize handles everything
 async function connectAuthSocket() {
   await authenticate();
 }
