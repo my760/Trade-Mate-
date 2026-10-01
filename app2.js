@@ -2,7 +2,7 @@ window.onerror = function (msg) {
   document.getElementById("status").textContent = "JS Error: " + msg;
 };
 
-const APP_ID = "1089";
+const APP_ID = "34ya3MjzHm3sUbSFXKCeN";
 
 const BOT_PRESETS = {
   over: { label: "Digit Over", contract_type: "DIGITOVER", needsBarrier: true },
@@ -510,5 +510,4 @@ function loadScanResult() {
 
   const botsTab = document.querySelector('.tab-btn[data-tab="bots"]');
   if (botsTab) botsTab.click();
-  }
-  
+}
