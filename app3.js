@@ -607,4 +607,4 @@ if (loadScanBtn) {
 }
 
 setStatus("Not connected");
-connect
+connect();
