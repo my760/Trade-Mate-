@@ -1,3 +1,58 @@
+
+function updateLiveTrade(poc) {
+  const st = document.getElementById("liveStatus");
+  const cid = document.getElementById("liveContract");
+  const entry = document.getElementById("liveEntry");
+  const spot = document.getElementById("liveSpot");
+  const pl = document.getElementById("livePL");
+  if (!st) return;
+
+  if (!poc) {
+    st.textContent = "—";
+    if (cid) cid.textContent = "—";
+    if (entry) entry.textContent = "—";
+    if (spot) spot.textContent = "—";
+    if (pl) { pl.textContent = "—"; pl.style.color = ""; }
+    return;
+  }
+
+  const open = !(poc.is_sold || poc.status === "sold");
+  st.textContent = open ? "OPEN" : "CLOSED";
+  st.style.color = open ? "var(--yellow)" : "var(--muted)";
+
+  if (cid) cid.textContent = poc.contract_id || "—";
+  if (entry) entry.textContent = (poc.buy_price != null ? poc.buy_price : "—") +
+    (poc.contract_type ? " · " + poc.contract_type : "");
+  if (spot) spot.textContent = poc.current_spot != null ? poc.current_spot :
+    (poc.exit_tick != null ? poc.exit_tick : "—");
+
+  if (pl) {
+    const profit = poc.profit;
+    if (profit == null) {
+      pl.textContent = open ? "…" : "—";
+      pl.style.color = "";
+    } else {
+      const n = parseFloat(profit);
+      pl.textContent = (n >= 0 ? "+" : "") + n;
+      pl.style.color = n >= 0 ? "var(--green)" : "var(--red)";
+    }
+  }
+}
+
+function pushLiveTradeRow(label, profit) {
+  const list = document.getElementById("liveTradeList");
+  if (!list) return;
+  if (list.textContent === "No trades yet") list.innerHTML = "";
+  const n = parseFloat(profit);
+  const color = n >= 0 ? "var(--green)" : "var(--red)";
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)";
+  row.innerHTML = "<span>" + label + "</span><span style='color:" + color + ";font-weight:700'>" +
+    (n >= 0 ? "+" : "") + n + "</span>";
+  list.insertBefore(row, list.firstChild);
+}
+
+
 async function authenticate() {
   const raw = patToken ? patToken.value : "";
   const token = String(raw || "").trim().replace(/\s+/g, "");
@@ -54,7 +109,16 @@ async function authenticate() {
       }
       if (data.msg_type === "buy" && data.buy) {
         if (tradeStatus) tradeStatus.textContent = "Contract opened · ID " + (data.buy.contract_id || "");
+        const scanStatus = document.getElementById("scanTradeStatus");
+        if (scanStatus) scanStatus.textContent = "Contract opened · " + (data.buy.contract_id || "");
         if (typeof lastPlacedContractId !== "undefined") lastPlacedContractId = data.buy.contract_id;
+        updateLiveTrade({
+          contract_id: data.buy.contract_id,
+          buy_price: data.buy.buy_price || data.buy.purchase_price,
+          contract_type: (pendingTrade && pendingTrade.contract_type) || "",
+          is_sold: 0,
+          profit: null
+        });
         if (data.buy.contract_id) {
           authSocket.send(JSON.stringify({
             proposal_open_contract: 1,
@@ -66,9 +130,19 @@ async function authenticate() {
       }
       if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
         const poc = data.proposal_open_contract;
+        updateLiveTrade(poc);
         if (poc.is_sold || poc.status === "sold") {
           const profit = poc.profit;
           if (tradeStatus) tradeStatus.textContent = profit >= 0 ? "Won +" + profit : "Lost " + profit;
+          const scanStatus = document.getElementById("scanTradeStatus");
+          if (scanStatus && typeof runningFromScan !== "undefined" && runningFromScan) {
+            scanStatus.textContent = (profit >= 0 ? "Won +" : "Lost ") + profit;
+          }
+          pushLiveTradeRow(
+            (poc.contract_type || "Trade") + " #" + (poc.contract_id || ""),
+            profit
+          );
+          if (typeof window._scanOnSettled === "function") window._scanOnSettled(profit);
           if (typeof handleTradeSettled === "function") handleTradeSettled();
           awaitingSettlement = false;
         }
@@ -397,6 +471,9 @@ function handleTradeSettled() {
   const limit = parseInt(maxTrades.value, 10);
   if (tradesPlacedCount >= limit) {
     tradeStatus.textContent = "Stopped: reached " + limit + " trades";
+    const scanStatus = document.getElementById("scanTradeStatus");
+    if (scanStatus) scanStatus.textContent = "Stopped: reached " + limit + " trades";
+    if (typeof runningFromScan !== "undefined") runningFromScan = false;
     stopBot();
     return;
   }
@@ -530,5 +607,4 @@ if (loadScanBtn) {
 }
 
 setStatus("Not connected");
-connectDeriv();
-              
+connect
