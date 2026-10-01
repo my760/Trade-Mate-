@@ -1,5 +1,4 @@
 async function authenticate() {
-  // Always read fresh from the input (ignore stale localStorage during this click)
   const raw = patToken ? patToken.value : "";
   const token = String(raw || "").trim().replace(/\s+/g, "");
 
@@ -7,12 +6,11 @@ async function authenticate() {
     accountStatus.textContent = "Enter your API token first";
     return;
   }
-  if (token.length < 15) {
-    accountStatus.textContent = "Token too short. Paste the FULL token (usually starts with a1-)";
+  if (token.length < 10) {
+    accountStatus.textContent = "Token too short — paste the full token";
     return;
   }
 
-  // Save only after basic checks
   if (rememberToken && rememberToken.checked) {
     try { localStorage.setItem("trademate_pat", token); } catch (e) {}
   } else {
@@ -27,68 +25,12 @@ async function authenticate() {
   } catch (e) {}
 
   const mask = token.slice(0, 4) + "…" + token.slice(-4);
-  accountStatus.textContent = "Authorizing token " + mask + " …";
+  const isPat = token.toLowerCase().indexOf("pat_") === 0 || token.toLowerCase().indexOf("pat-") === 0;
 
-  function openAndAuthorize(url) {
-    return new Promise(function (resolve) {
-      let settled = false;
-      let ws;
-      try {
-        ws = new WebSocket(url);
-      } catch (e) {
-        resolve({ ok: false, error: e.message });
-        return;
-      }
-
-      const timer = setTimeout(function () {
-        if (settled) return;
-        settled = true;
-        try { ws.close(); } catch (e) {}
-        resolve({ ok: false, error: "timeout connecting to " + url });
-      }, 12000);
-
-      ws.onopen = function () {
-        ws.send(JSON.stringify({ authorize: token }));
-      };
-
-      ws.onmessage = function (ev) {
-        let data;
-        try { data = JSON.parse(ev.data); } catch (e) { return; }
-
-        if (data.error) {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          const msg = data.error.message || "authorize failed";
-          try { ws.close(); } catch (e) {}
-          resolve({ ok: false, error: msg });
-          return;
-        }
-
-        if (data.msg_type === "authorize" && data.authorize) {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          resolve({ ok: true, ws: ws, auth: data.authorize });
-        }
-      };
-
-      ws.onerror = function () {
-        // wait for onclose / timeout
-      };
-
-      ws.onclose = function () {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve({ ok: false, error: "connection closed before authorize" });
-      };
-    });
-  }
+  accountStatus.textContent = "Authorizing " + mask + (isPat ? " (PAT)" : " (classic)") + "…";
 
   function attachTradingSocket(ws) {
     authSocket = ws;
-
     if (authSocket._ping) clearInterval(authSocket._ping);
     authSocket._ping = setInterval(function () {
       if (authSocket && authSocket.readyState === WebSocket.OPEN) {
@@ -140,7 +82,152 @@ async function authenticate() {
     };
   }
 
-  // Only use classic Deriv v3 endpoints (do NOT authorize on the public market socket)
+  // ---------- PAT token flow (pat_...) ----------
+  if (isPat) {
+    try {
+      accountStatus.textContent = "PAT: fetching accounts…";
+      const accRes = await fetch("https://api.derivws.com/trading/v1/options/accounts", {
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Deriv-App-ID": APP,
+          "Accept": "application/json"
+        }
+      });
+      const accText = await accRes.text();
+      let accData;
+      try { accData = JSON.parse(accText); } catch (e) {
+        accountStatus.textContent = "PAT accounts failed (" + accRes.status + "): not JSON. Check App ID. Body: " + accText.slice(0, 80);
+        return;
+      }
+      if (!accRes.ok) {
+        const errMsg = (accData.errors && accData.errors[0] && accData.errors[0].message)
+          || accData.message
+          || ("HTTP " + accRes.status);
+        accountStatus.textContent = "PAT error: " + errMsg + " | App ID used: " + APP;
+        return;
+      }
+
+      const list = accData.data || accData.accounts || [];
+      accounts = {};
+      list.forEach(function (acc) {
+        const t = (acc.account_type || acc.type || "").toLowerCase();
+        const id = acc.account_id || acc.id || acc.loginid;
+        if (id) accounts[t || "demo"] = id;
+        // also map virtual/real
+        if (acc.is_virtual || t.indexOf("demo") >= 0 || t.indexOf("virtual") >= 0) accounts["demo"] = id;
+        else accounts["real"] = id;
+      });
+
+      const preferred = (accountType && accountType.value) || "demo";
+      let accId = accounts[preferred] || accounts["demo"] || accounts["real"] || Object.values(accounts)[0];
+      if (!accId && list[0]) accId = list[0].account_id || list[0].id;
+
+      if (!accId) {
+        accountStatus.textContent = "PAT: no trading accounts found on this token";
+        return;
+      }
+
+      accountStatus.textContent = "PAT: requesting OTP for " + accId + "…";
+      const otpRes = await fetch(
+        "https://api.derivws.com/trading/v1/options/accounts/" + encodeURIComponent(accId) + "/otp",
+        {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer " + token,
+            "Deriv-App-ID": APP,
+            "Accept": "application/json"
+          }
+        }
+      );
+      const otpText = await otpRes.text();
+      let otpData;
+      try { otpData = JSON.parse(otpText); } catch (e) {
+        accountStatus.textContent = "PAT OTP failed (" + otpRes.status + "): " + otpText.slice(0, 100);
+        return;
+      }
+      if (!otpRes.ok) {
+        const errMsg = (otpData.errors && otpData.errors[0] && otpData.errors[0].message)
+          || otpData.message
+          || ("HTTP " + otpRes.status);
+        accountStatus.textContent = "PAT OTP error: " + errMsg;
+        return;
+      }
+
+      const wsUrl = (otpData.data && otpData.data.url) || otpData.url;
+      if (!wsUrl) {
+        accountStatus.textContent = "PAT: no WebSocket URL in OTP response";
+        return;
+      }
+
+      accountStatus.textContent = "PAT: opening trading socket…";
+      const ws = new WebSocket(wsUrl);
+      ws.onopen = function () {
+        attachTradingSocket(ws);
+        accountStatus.textContent = "Trading ready (PAT) · " + accId;
+        try { ws.send(JSON.stringify({ balance: 1, subscribe: 1 })); } catch (e) {}
+      };
+      ws.onerror = function () {
+        accountStatus.textContent = "PAT trading socket error";
+      };
+      ws.onclose = function (ev) {
+        if (accountStatus.textContent.indexOf("Trading ready") === -1) {
+          accountStatus.textContent = "PAT socket closed (" + ev.code + ")";
+        }
+      };
+      return;
+    } catch (e) {
+      accountStatus.textContent = "PAT auth failed: " + e.message;
+      return;
+    }
+  }
+
+  // ---------- Classic token flow (a1-...) ----------
+  function openAndAuthorize(url) {
+    return new Promise(function (resolve) {
+      let settled = false;
+      let ws;
+      try { ws = new WebSocket(url); } catch (e) {
+        resolve({ ok: false, error: e.message });
+        return;
+      }
+      const timer = setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        try { ws.close(); } catch (e) {}
+        resolve({ ok: false, error: "timeout" });
+      }, 12000);
+
+      ws.onopen = function () {
+        ws.send(JSON.stringify({ authorize: token }));
+      };
+      ws.onmessage = function (ev) {
+        let data;
+        try { data = JSON.parse(ev.data); } catch (e) { return; }
+        if (data.error) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          try { ws.close(); } catch (e) {}
+          resolve({ ok: false, error: data.error.message || "authorize failed" });
+          return;
+        }
+        if (data.msg_type === "authorize" && data.authorize) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({ ok: true, ws: ws, auth: data.authorize });
+        }
+      };
+      ws.onclose = function () {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ ok: false, error: "connection closed before authorize" });
+      };
+      ws.onerror = function () {};
+    });
+  }
+
   const urls = [
     "wss://ws.derivws.com/websockets/v3?app_id=" + encodeURIComponent(APP),
     "wss://ws.binaryws.com/websockets/v3?app_id=" + encodeURIComponent(APP)
@@ -148,7 +235,7 @@ async function authenticate() {
 
   let lastError = "";
   for (let i = 0; i < urls.length; i++) {
-    accountStatus.textContent = "Authorizing " + mask + " (" + (i + 1) + "/" + urls.length + ")…";
+    accountStatus.textContent = "Classic auth " + mask + " (" + (i + 1) + "/" + urls.length + ")…";
     const result = await openAndAuthorize(urls[i]);
     if (result.ok) {
       attachTradingSocket(result.ws);
@@ -160,12 +247,11 @@ async function authenticate() {
       return;
     }
     lastError = result.error || "unknown";
-    console.warn("Auth failed:", lastError);
   }
 
   accountStatus.textContent = "Auth failed: " + lastError +
-    " | Token used: " + mask +
-    " | Create token at app.deriv.com/account/api-token with Read+Trade. App ID: " + APP;
+    " | Token: " + mask +
+    " | If token starts with pat_, add your PAT App ID from api.deriv.com. If a1-, use Read+Trade token from app.deriv.com/account/api-token.";
 }
 
 async function connectAuthSocket() {
@@ -445,4 +531,4 @@ if (loadScanBtn) {
 
 setStatus("Not connected");
 connectDeriv();
-  
+        
