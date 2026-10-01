@@ -17,7 +17,7 @@ async function authenticate() {
     try { localStorage.removeItem("trademate_pat"); } catch (e) {}
   }
 
-  let APP = "1089";
+  let APP = "34ya3MjzHm3sUbSFXKCeN";
   try {
     const el = document.getElementById("appId");
     if (el && el.value && String(el.value).trim()) APP = String(el.value).trim();
@@ -531,4 +531,4 @@ if (loadScanBtn) {
 
 setStatus("Not connected");
 connectDeriv();
-        
+              
