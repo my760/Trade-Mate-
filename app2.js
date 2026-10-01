@@ -498,16 +498,80 @@ async function scanMarkets() {
 function loadScanResult() {
   if (!scanBestResult) return;
 
+  // Apply market + strategy but stay on Scanner tab
   marketSelect.value = scanBestResult.symbol;
   if (marketBotsSelect) marketBotsSelect.value = scanBestResult.symbol;
   subscribeToTicks(scanBestResult.symbol);
 
   selectBot(scanBestResult.signal.type);
 
-  if (scanBestResult.signal.barrier !== null && botBarrier) {
+  const barrierVal = scanBestResult.signal.barrier;
+  if (barrierVal !== null && barrierVal !== undefined) {
+    if (botBarrier) botBarrier.value = barrierVal;
+    const scanBarrier = document.getElementById("scanBarrier");
+    if (scanBarrier) scanBarrier.value = barrierVal;
+  }
+
+  const panel = document.getElementById("scanTradePanel");
+  const summary = document.getElementById("scanTradeSummary");
+  if (panel) panel.style.display = "block";
+  if (summary) {
+    const side = (scanBestResult.signal.type || "").toUpperCase();
+    const pct = scanBestResult.signal.pct != null ? scanBestResult.signal.pct : "";
+    const name = scanBestResult.name || scanBestResult.symbol;
+    summary.textContent = name + " · " + side + (pct !== "" ? " · " + pct + "%" : "");
+  }
+
+  const status = document.getElementById("scanTradeStatus");
+  if (status) status.textContent = "Ready — set stake / TP / SL then Start Trading";
+}
+
+// --- Scanner-run trading (uses same bot engine, stays on Scanner) ---
+let scanSessionProfit = 0;
+let scanTP = 0;
+let scanSL = 0;
+let runningFromScan = false;
+
+function startScanTrade() {
+  if (!scanBestResult) {
+    const s = document.getElementById("scanTradeStatus");
+    if (s) s.textContent = "Scan first, then Load & Run";
+    return;
+  }
+  if (typeof authSocket === "undefined" || !authSocket || authSocket.readyState !== WebSocket.OPEN) {
+    const s = document.getElementById("scanTradeStatus");
+    if (s) s.textContent = "Authenticate first on Dashboard";
+    return;
+  }
+
+  // Push scan settings into the shared trade fields
+  const stakeEl = document.getElementById("scanStake");
+  const ticksEl = document.getElementById("scanTicksDuration");
+  const maxEl = document.getElementById("scanMaxTrades");
+  const barEl = document.getElementById("scanBarrier");
+  const tpEl = document.getElementById("scanTP");
+  const slEl = document.getElementById("scanSL");
+
+  if (stakeAmount && stakeEl) stakeAmount.value = stakeEl.value;
+  if (ticksDuration && ticksEl) ticksDuration.value = ticksEl.value;
+  if (maxTrades && maxEl) maxTrades.value = maxEl.value;
+  if (botBarrier && barEl) botBarrier.value = barEl.value;
+
+  marketSelect.value = scanBestResult.symbol;
+  if (marketBotsSelect) marketBotsSelect.value = scanBestResult.symbol;
+  selectBot(scanBestResult.signal.type);
+  if (scanBestResult.signal.barrier != null && botBarrier) {
     botBarrier.value = scanBestResult.signal.barrier;
   }
 
-  const botsTab = document.querySelector('.tab-btn[data-tab="bots"]');
-  if (botsTab) botsTab.click();
-}
+  scanTP = tpEl ? parseFloat(tpEl.value) || 0 : 0;
+  scanSL = slEl ? parseFloat(slEl.value) || 0 : 0;
+  scanSessionProfit = 0;
+  runningFromScan = true;
+
+  const s = document.getElementById("scanTradeStatus");
+  if (s) s.textContent = "Starting…";
+
+  if (typeof startBot === "function") startBot();
+  else if (typeof placeTrade === "function") {
+  
