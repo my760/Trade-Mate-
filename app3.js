@@ -1,28 +1,37 @@
 async function authenticate() {
-  const token = patToken.value.trim();
+  // Always read fresh from the input (ignore stale localStorage during this click)
+  const raw = patToken ? patToken.value : "";
+  const token = String(raw || "").trim().replace(/\s+/g, "");
+
   if (!token) {
     accountStatus.textContent = "Enter your API token first";
     return;
   }
-  if (token.length < 10) {
-    accountStatus.textContent = "Token looks too short — paste the full API token";
+  if (token.length < 15) {
+    accountStatus.textContent = "Token too short. Paste the FULL token (usually starts with a1-)";
     return;
   }
 
+  // Save only after basic checks
   if (rememberToken && rememberToken.checked) {
     try { localStorage.setItem("trademate_pat", token); } catch (e) {}
+  } else {
+    try { localStorage.removeItem("trademate_pat"); } catch (e) {}
   }
 
-  const APP = (typeof APP_ID !== "undefined" && APP_ID && String(APP_ID).length)
-    ? String(APP_ID)
-    : "1089";
+  let APP = "1089";
+  try {
+    const el = document.getElementById("appId");
+    if (el && el.value && String(el.value).trim()) APP = String(el.value).trim();
+    else if (typeof APP_ID !== "undefined" && APP_ID) APP = String(APP_ID);
+  } catch (e) {}
 
-  accountStatus.textContent = "Authorizing...";
+  const mask = token.slice(0, 4) + "…" + token.slice(-4);
+  accountStatus.textContent = "Authorizing token " + mask + " …";
 
-  // Strategy A: classic WebSocket authorize (works with tokens from app.deriv.com)
-  function classicAuthorize(url) {
+  function openAndAuthorize(url) {
     return new Promise(function (resolve) {
-      let done = false;
+      let settled = false;
       let ws;
       try {
         ws = new WebSocket(url);
@@ -30,58 +39,62 @@ async function authenticate() {
         resolve({ ok: false, error: e.message });
         return;
       }
-      const t = setTimeout(function () {
-        if (done) return;
-        done = true;
+
+      const timer = setTimeout(function () {
+        if (settled) return;
+        settled = true;
         try { ws.close(); } catch (e) {}
-        resolve({ ok: false, error: "timeout" });
-      }, 10000);
+        resolve({ ok: false, error: "timeout connecting to " + url });
+      }, 12000);
 
       ws.onopen = function () {
         ws.send(JSON.stringify({ authorize: token }));
       };
-      ws.onmessage = function (event) {
+
+      ws.onmessage = function (ev) {
         let data;
-        try { data = JSON.parse(event.data); } catch (e) { return; }
+        try { data = JSON.parse(ev.data); } catch (e) { return; }
+
         if (data.error) {
-          if (done) return;
-          done = true;
-          clearTimeout(t);
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          const msg = data.error.message || "authorize failed";
           try { ws.close(); } catch (e) {}
-          resolve({ ok: false, error: data.error.message || "authorize failed" });
+          resolve({ ok: false, error: msg });
           return;
         }
+
         if (data.msg_type === "authorize" && data.authorize) {
-          if (done) return;
-          done = true;
-          clearTimeout(t);
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
           resolve({ ok: true, ws: ws, auth: data.authorize });
         }
       };
+
       ws.onerror = function () {
-        if (done) return;
-        done = true;
-        clearTimeout(t);
-        resolve({ ok: false, error: "ws error" });
+        // wait for onclose / timeout
       };
+
       ws.onclose = function () {
-        if (done) return;
-        done = true;
-        clearTimeout(t);
-        resolve({ ok: false, error: "closed before authorize" });
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ ok: false, error: "connection closed before authorize" });
       };
     });
   }
 
-  function attachAuthHandlers(ws) {
+  function attachTradingSocket(ws) {
     authSocket = ws;
-    try {
-      authSocket._ping = setInterval(function () {
-        if (authSocket && authSocket.readyState === WebSocket.OPEN) {
-          authSocket.send(JSON.stringify({ ping: 1 }));
-        }
-      }, 30000);
-    } catch (e) {}
+
+    if (authSocket._ping) clearInterval(authSocket._ping);
+    authSocket._ping = setInterval(function () {
+      if (authSocket && authSocket.readyState === WebSocket.OPEN) {
+        try { authSocket.send(JSON.stringify({ ping: 1 })); } catch (e) {}
+      }
+    }, 30000);
 
     authSocket.onmessage = function (event) {
       let data;
@@ -127,17 +140,18 @@ async function authenticate() {
     };
   }
 
-  // Try classic endpoints
+  // Only use classic Deriv v3 endpoints (do NOT authorize on the public market socket)
   const urls = [
-    "wss://ws.derivws.com/websockets/v3?app_id=" + APP,
-    "wss://ws.binaryws.com/websockets/v3?app_id=" + APP
+    "wss://ws.derivws.com/websockets/v3?app_id=" + encodeURIComponent(APP),
+    "wss://ws.binaryws.com/websockets/v3?app_id=" + encodeURIComponent(APP)
   ];
 
+  let lastError = "";
   for (let i = 0; i < urls.length; i++) {
-    accountStatus.textContent = "Authorizing... (" + (i + 1) + "/" + urls.length + ")";
-    const result = await classicAuthorize(urls[i]);
+    accountStatus.textContent = "Authorizing " + mask + " (" + (i + 1) + "/" + urls.length + ")…";
+    const result = await openAndAuthorize(urls[i]);
     if (result.ok) {
-      attachAuthHandlers(result.ws);
+      attachTradingSocket(result.ws);
       const auth = result.auth;
       const loginid = auth.loginid || "";
       const isVirtual = auth.is_virtual === 1 || (loginid + "").toUpperCase().indexOf("VR") === 0;
@@ -145,49 +159,13 @@ async function authenticate() {
       result.ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
       return;
     }
-    console.warn("Auth attempt failed:", result.error);
+    lastError = result.error || "unknown";
+    console.warn("Auth failed:", lastError);
   }
 
-  // Strategy B: try authorize on the already-open public socket (app2)
-  if (typeof socket !== "undefined" && socket && socket.readyState === WebSocket.OPEN) {
-    accountStatus.textContent = "Trying public socket authorize...";
-    try {
-      const result = await new Promise(function (resolve) {
-        const t = setTimeout(function () { resolve({ ok: false, error: "timeout" }); }, 8000);
-        function handler(event) {
-          let data;
-          try { data = JSON.parse(event.data); } catch (e) { return; }
-          if (data.msg_type === "authorize" && data.authorize) {
-            clearTimeout(t);
-            socket.removeEventListener("message", handler);
-            resolve({ ok: true, auth: data.authorize });
-          }
-          if (data.error && data.echo_req && data.echo_req.authorize) {
-            clearTimeout(t);
-            socket.removeEventListener("message", handler);
-            resolve({ ok: false, error: data.error.message });
-          }
-        }
-        socket.addEventListener("message", handler);
-        socket.send(JSON.stringify({ authorize: token }));
-      });
-      if (result.ok) {
-        // Use public socket for trading too
-        attachAuthHandlers(socket);
-        const auth = result.auth;
-        const loginid = auth.loginid || "";
-        const isVirtual = auth.is_virtual === 1 || (loginid + "").toUpperCase().indexOf("VR") === 0;
-        accountStatus.textContent = "Trading ready (" + (isVirtual ? "demo" : "real") + ") · " + loginid;
-        socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-        return;
-      }
-    } catch (e) {
-      console.warn(e);
-    }
-  }
-
-  accountStatus.textContent =
-    "Could not authorize. Create a NEW token at app.deriv.com → Account → API token with Read+Trade, paste it, try again. Or register an app at api.deriv.com and set your App ID.";
+  accountStatus.textContent = "Auth failed: " + lastError +
+    " | Token used: " + mask +
+    " | Create token at app.deriv.com/account/api-token with Read+Trade. App ID: " + APP;
 }
 
 async function connectAuthSocket() {
@@ -467,4 +445,4 @@ if (loadScanBtn) {
 
 setStatus("Not connected");
 connectDeriv();
-            
+  
