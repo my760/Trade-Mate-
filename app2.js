@@ -573,5 +573,16 @@ function startScanTrade() {
   if (s) s.textContent = "Starting…";
 
   if (typeof startBot === "function") startBot();
-  else if (typeof placeTrade === "function") {
+  else if (typeof placeTrade === "function") {(function () {
+  var startBtn = document.getElementById("scanStartBtn");
+  var stopBtn = document.getElementById("scanStopBtn");
+  if (startBtn) startBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    startScanTrade();
+  });
+  if (stopBtn) stopBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    stopScanTrade();
+  });
+})();
   
